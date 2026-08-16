@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   },
   verification: {
     google: "AcBe3Hm_jsXpaJKBlSAiibYfaJ5IqADth9t0cuH8OzU",
+    yandex: "a4863f6f38a0d0e5",
   },
   alternates: {
     canonical: "https://eldevo.com/",
