@@ -1,0 +1,29 @@
+name: ElDevo v2 build
+
+on:
+  push:
+    branches:
+      - eldevo-v2-seo-tools
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Package source
+        run: |
+          rm -rf package/ .next out
+          mkdir package
+          rsync -a --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='out' ./ package/
+          cd package && zip -r ../eldevo-v2-ready.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eldevo-v2-ready
+          path: eldevo-v2-ready.zip
+          retention-days: 14
