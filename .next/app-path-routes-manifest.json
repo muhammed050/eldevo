@@ -1,0 +1,17 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/robots.txt/route": "/robots.txt",
+  "/sitemap.xml/route": "/sitemap.xml",
+  "/contact/page": "/contact",
+  "/about/page": "/about",
+  "/converters/page": "/converters",
+  "/disclaimer/page": "/disclaimer",
+  "/cheatsheets/page": "/cheatsheets",
+  "/page": "/",
+  "/converters/[slug]/page": "/converters/[slug]",
+  "/cheatsheets/[slug]/page": "/cheatsheets/[slug]",
+  "/tools/[slug]/page": "/tools/[slug]",
+  "/tools/page": "/tools",
+  "/privacy-policy/page": "/privacy-policy",
+  "/terms/page": "/terms"
+}
