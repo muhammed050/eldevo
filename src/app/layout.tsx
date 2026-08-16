@@ -28,8 +28,7 @@ export const metadata: Metadata = {
     siteName: "ElDevo",
     type: "website",
     title: "ElDevo — Fast, Private Online Developer Tools",
-    description:
-      "Privacy-first developer tools that run entirely in your browser.",
+    description: "Privacy-first developer tools that run entirely in your browser.",
     url: "https://eldevo.com/",
   },
   twitter: {
@@ -39,9 +38,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
       <body>
