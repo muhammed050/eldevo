@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
-import { allToolPaths } from "@/config/tools.config";
-import { strategicToolMeta } from "@/config/strategic-tools";
+import { toolEntries } from "@/lib/tool-registry";
 
 export const dynamic = "force-static";
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticPaths = [
     "/",
@@ -15,8 +15,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/terms/",
     "/disclaimer/",
   ];
-  const strategicPaths = strategicToolMeta.map((tool) => `/tools/${tool.slug}/`);
-  return [...new Set([...staticPaths, ...allToolPaths, ...strategicPaths])].map((path) => ({
+  const activeToolPaths = toolEntries.map((tool) => tool.href);
+  return [...new Set([...staticPaths, ...activeToolPaths])].map((path) => ({
     url: `https://eldevo.com${path}`,
     lastModified: new Date(),
     changeFrequency: path === "/" ? "weekly" : "monthly",
