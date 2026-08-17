@@ -2,9 +2,17 @@ import Link from "next/link";
 import type { ToolMeta } from "@/config/tools.config";
 import { AdSlot, PrivacyBanner } from "@/components/Site";
 import { UniversalToolWorkspace } from "@/components/UniversalToolWorkspace";
+import { toolBySlug } from "@/lib/tool-registry";
+
+const jsonLd = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 
 export function ToolPageContent({ meta, path }: { meta: ToolMeta & { kind: "tool" | "converter" }; path: string }) {
-  const related = meta.related.map((href) => ({ href, label: href.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ") ?? "Related tool" }));
+  const related = meta.related
+    .filter((href) => {
+      const match = href.match(/^\/(tools|converters)\/([^/]+)\/?$/);
+      return match ? Boolean(toolBySlug.get(match[2])) : false;
+    })
+    .map((href) => ({ href, label: href.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ") ?? "Related tool" }));
   const webApplication = { "@context": "https://schema.org", "@type": "WebApplication", name: meta.title, url: `https://eldevo.com${path}`, applicationCategory: "DeveloperApplication", operatingSystem: "Any", description: meta.description, browserRequirements: "Requires JavaScript", offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } };
   const faq = { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: meta.faqs.map((item) => ({ "@type": "Question", name: item.q, acceptedAnswer: { "@type": "Answer", text: item.a } })) };
   const breadcrumbs = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
@@ -14,9 +22,9 @@ export function ToolPageContent({ meta, path }: { meta: ToolMeta & { kind: "tool
   ] };
 
   return <article className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplication) }} />
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }} />
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbs) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(webApplication) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(faq) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbs) }} />
     <nav aria-label="Breadcrumb" className="mb-5 text-xs text-slate-500"><Link href="/" className="hover:text-cyan-400">Home</Link><span className="px-2">/</span><Link href={meta.kind === "converter" ? "/converters/" : "/tools/"} className="hover:text-cyan-400">{meta.kind === "converter" ? "Converters" : meta.category}</Link><span className="px-2">/</span><span className="text-slate-300">{meta.title}</span></nav>
     <header className="mb-7"><span className="rounded-full border border-cyan-500/25 bg-cyan-500/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[.18em] text-cyan-300">{meta.category}</span><h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{meta.h1}</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{meta.description}</p></header>
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]"><div className="min-w-0">
