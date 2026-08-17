@@ -1,4 +1,4 @@
-import type { ToolEngine } from "./shared";
+export type ToolEngine = (input: string) => Promise<string>;
 
 export type ImageOperation = "resize" | "compress" | "crop" | "convert" | "rotate";
 
@@ -80,6 +80,6 @@ export async function processImage(file: File, options: ImageOptions): Promise<B
   }
 }
 
-export const run: ToolEngine = async (input) => {
+export const run: ToolEngine = async () => {
   throw new Error("Image tools require a local File and use the image workspace.");
 };
