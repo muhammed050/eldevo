@@ -1,6 +1,7 @@
 import { converters, tools, type ToolMeta } from "../config/tools.config.ts";
 import { strategicToolMeta } from "../config/strategic-tools.ts";
-import { executeTool, ToolUnsupportedError } from "./tools/real-engine.ts";
+import { executeActiveTool } from "./tools/executor.ts";
+import { ToolUnsupportedError } from "./tools/real-engine";
 
 export type ToolExecutor = (input: string) => Promise<string>;
 export type ToolStatus = "active" | "unsupported";
@@ -27,6 +28,7 @@ export const unsupportedToolSlugs = new Set<string>([
   "png-to-jpg",
   "webp-converter",
   "favicon-generator",
+  "css-formatter",
 ]);
 
 const metadata = new Map<string, ToolMeta>();
@@ -45,7 +47,7 @@ function definition(item: ToolMeta, kind: "tool" | "converter"): ToolDefinition 
     status: "active",
     kind,
     href: `/${kind === "converter" ? "converters" : "tools"}/${item.slug}/`,
-    execute: (input) => executeTool(item.slug, input),
+    execute: (input) => executeActiveTool(item.slug, input),
     validate: validateInput,
   };
 }
@@ -61,8 +63,7 @@ export const categories = ["All", ...Array.from(new Set(toolEntries.map((tool) =
 
 export function searchTools(query: string, category = "All"): ToolDefinition[] {
   const q = query.trim().toLowerCase();
-  return toolEntries
-    .filter((tool) => category === "All" || tool.category === category)
+  return toolEntries.filter((tool) => category === "All" || tool.category === category)
     .map((tool) => {
       const haystack = [tool.title, tool.h1, tool.primaryKeyword, tool.category, tool.description, ...tool.secondaryKeywords].join(" ").toLowerCase();
       let score = q ? 0 : 1;
@@ -77,12 +78,6 @@ export function searchTools(query: string, category = "All"): ToolDefinition[] {
     .map(({ tool }) => tool);
 }
 
-export function getToolDefinition(slug: string): ToolDefinition | undefined {
-  return toolBySlug.get(slug);
-}
-
-export function isUnsupportedError(error: unknown): boolean {
-  return error instanceof ToolUnsupportedError;
-}
-
+export function getToolDefinition(slug: string): ToolDefinition | undefined { return toolBySlug.get(slug); }
+export function isUnsupportedError(error: unknown): boolean { return error instanceof ToolUnsupportedError; }
 export { metadata };
