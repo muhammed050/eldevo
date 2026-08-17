@@ -45,7 +45,6 @@ export async function upscaleImage(file: File, scale: 2 | 4, format: Format, qua
     const targetW = source.width * scale;
     const targetH = source.height * scale;
     
-    // Clamp dimensions to browser bounds & pixel limit
     let width = Math.min(MAX_CANVAS_DIMENSION, targetW);
     let height = Math.min(MAX_CANVAS_DIMENSION, targetH);
     
@@ -298,7 +297,7 @@ export async function imagesToPdf(
   const catalogId = add(ascii(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`));
 
   const header = ascii("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
-  const chunks: Uint8Array[] = [header];
+  const chunks: BlobPart[] = [header];
   const offsets = [0];
   let offset = header.length;
 
