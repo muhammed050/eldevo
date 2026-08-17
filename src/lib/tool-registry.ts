@@ -1,13 +1,13 @@
-import { converters, type ToolMeta } from "@/config/tools.config";
+import type { ToolMeta } from "@/config/tools.config";
 import { coreTools } from "@/config/core-tools";
 
-export type ToolEntry = ToolMeta & { kind: "tool" | "converter"; href: string };
+export type ToolEntry = ToolMeta & { kind: "tool"; href: string };
 
-const activeTools = coreTools;
-export const toolEntries: ToolEntry[] = [
-  ...activeTools.map(tool => ({ ...tool, kind: "tool" as const, href: `/tools/${tool.slug}/` })),
-  ...converters.map(tool => ({ ...tool, kind: "converter" as const, href: `/converters/${tool.slug}/` })),
-];
+export const toolEntries: ToolEntry[] = coreTools.map(tool => ({
+  ...tool,
+  kind: "tool" as const,
+  href: `/tools/${tool.slug}/`,
+}));
 
 export const toolBySlug = new Map(toolEntries.map(tool => [tool.slug, tool]));
 export const categories = ["All", ...Array.from(new Set(toolEntries.map(tool => tool.category)))];
