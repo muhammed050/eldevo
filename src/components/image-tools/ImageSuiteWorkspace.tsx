@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { compressImage, imagesToPdf, removeBackground, socialResize, upscaleImage } from "@/lib/engines/image-suite-engine";
 
-// الحفاظ على التنسيقات المدعومة من قبل المحرك الأصلي لمنع أخطاء Build
 type EngineFormat = "image/jpeg" | "image/png" | "image/webp";
 type Tool = "background-remover" | "image-upscaler" | "image-compressor-pro" | "social-media-image-resizer" | "image-to-pdf";
 
 type Props = { tool: Tool };
+
+interface FileWithPreview {
+  file: File;
+  previewUrl: string;
+}
 
 const accepts = "image/jpeg,image/png,image/webp";
 const presets: Record<string, [number, number]> = {
@@ -24,16 +28,17 @@ const presets: Record<string, [number, number]> = {
 };
 
 export function ImageSuiteWorkspace({ tool }: Props) {
-  const [files, setFiles] = useState<File[]>([]);
+  const [items, setItems] = useState<FileWithPreview[]>([]);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [resultUrl, setResultUrl] = useState("");
   const [resultName, setResultName] = useState("");
   const [resultSize, setResultSize] = useState<number | null>(null);
-  const [originalPreviewUrl, setOriginalPreviewUrl] = useState("");
   const [compareSlider, setCompareSlider] = useState(50);
   
+  const resultUrlRef = useRef<string>("");
+
   // Settings States
   const [quality, setQuality] = useState(82);
   const [format, setFormat] = useState<EngineFormat>("image/webp");
@@ -55,29 +60,48 @@ export function ImageSuiteWorkspace({ tool }: Props) {
     "image-to-pdf": "Image to PDF",
   }[tool]), [tool]);
 
-  const clearResult = useCallback(() => { 
-    if (resultUrl) URL.revokeObjectURL(resultUrl); 
-    if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
-    setResultUrl(""); 
-    setResultName(""); 
-    setResultSize(null);
-    setOriginalPreviewUrl("");
-  }, [resultUrl, originalPreviewUrl]);
+  // تنظيف الروابط عند الحذف أو الخروج
+  const cleanupItems = useCallback((itemsToClean: FileWithPreview[]) => {
+    itemsToClean.forEach(item => URL.revokeObjectURL(item.previewUrl));
+  }, []);
 
-  useEffect(() => () => { clearResult(); }, [clearResult]);
+  const cleanupResult = useCallback(() => {
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current);
+      resultUrlRef.current = "";
+    }
+    setResultUrl("");
+    setResultName("");
+    setResultSize(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      items.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
+    };
+  }, []);
 
   const choose = useCallback((incoming: File[]) => {
     const valid = incoming.filter((file) => accepts.split(",").includes(file.type) && file.size <= 25 * 1024 * 1024);
     if (!valid.length) { setError("Please choose valid PNG, JPG, or WebP files up to 25 MB each."); return; }
-    setError(""); 
-    clearResult();
-    const selectedFiles = tool === "image-to-pdf" ? valid.slice(0, 30) : [valid[0]];
-    setFiles(selectedFiles);
     
-    if (selectedFiles.length > 0) {
-      setOriginalPreviewUrl(URL.createObjectURL(selectedFiles[0]));
-    }
-  }, [clearResult, tool]);
+    setError(""); 
+    cleanupResult();
+
+    const selectedFiles = tool === "image-to-pdf" ? valid.slice(0, 30) : [valid[0]];
+    
+    // إنشاء روابط المعاينة الصغرى للصورة المرفوعة
+    const newItems: FileWithPreview[] = selectedFiles.map(file => ({
+      file,
+      previewUrl: URL.createObjectURL(file)
+    }));
+
+    setItems(prev => {
+      cleanupItems(prev);
+      return newItems;
+    });
+  }, [cleanupResult, cleanupItems, tool]);
 
   useEffect(() => {
     const paste = (event: ClipboardEvent) => { 
@@ -95,55 +119,67 @@ export function ImageSuiteWorkspace({ tool }: Props) {
     choose(Array.from(event.dataTransfer.files ?? [])); 
   };
 
-  const moveFile = (index: number, direction: -1 | 1) => {
-    const newFiles = [...files];
+  const moveItem = (index: number, direction: -1 | 1) => {
+    const newItems = [...items];
     const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= newFiles.length) return;
-    const temp = newFiles[index];
-    newFiles[index] = newFiles[targetIndex];
-    newFiles[targetIndex] = temp;
-    setFiles(newFiles);
+    if (targetIndex < 0 || targetIndex >= newItems.length) return;
+    const temp = newItems[index];
+    newItems[index] = newItems[targetIndex];
+    newItems[targetIndex] = temp;
+    setItems(newItems);
   };
 
-  const removeFile = (index: number) => {
-    setFiles(files.filter((_, i) => i !== index));
+  const removeItem = (index: number) => {
+    setItems(prev => {
+      URL.revokeObjectURL(prev[index].previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const run = async () => {
-    if (!files.length) { setError("Add an image first."); return; }
+    if (!items.length) { setError("Add an image first."); return; }
     setBusy(true); 
     setError(""); 
-    if (resultUrl) URL.revokeObjectURL(resultUrl); 
-    setResultUrl(""); 
+
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current);
+      resultUrlRef.current = "";
+    }
+    setResultUrl("");
     setResultName("");
     
     try {
       let blob: Blob;
       let name: string;
+      const rawFiles = items.map(item => item.file);
+
       if (tool === "background-remover") { 
-        blob = await removeBackground(files[0], tolerance); 
+        blob = await removeBackground(rawFiles[0], tolerance); 
         name = "eldevo-background-removed.png"; 
       }
       else if (tool === "image-upscaler") { 
-        blob = await upscaleImage(files[0], scale, format, quality / 100); 
+        blob = await upscaleImage(rawFiles[0], scale, format, quality / 100); 
         name = `eldevo-upscaled.${extension(format)}`; 
       }
       else if (tool === "image-compressor-pro") { 
-        blob = await compressImage(files[0], format, quality / 100, maxWidth || undefined); 
+        blob = await compressImage(rawFiles[0], format, quality / 100, maxWidth || undefined); 
         name = `eldevo-compressed.${extension(format)}`; 
       }
       else if (tool === "social-media-image-resizer") { 
         const [w, h] = presets[preset]; 
-        blob = await socialResize(files[0], w, h, fit, background, format, quality / 100); 
+        blob = await socialResize(rawFiles[0], w, h, fit, background, format, quality / 100); 
         name = `eldevo-${preset}.${extension(format)}`; 
       }
       else { 
-        blob = await imagesToPdf(files, pdfSize, landscape, margin); 
+        blob = await imagesToPdf(rawFiles, pdfSize, landscape, margin); 
         name = "eldevo-images.pdf"; 
       }
       
+      const newResultUrl = URL.createObjectURL(blob);
+      resultUrlRef.current = newResultUrl;
+      
       setResultSize(blob.size);
-      setResultUrl(URL.createObjectURL(blob)); 
+      setResultUrl(newResultUrl); 
       setResultName(name);
     } catch (e) { 
       setError(e instanceof Error ? e.message : "Unable to process the image."); 
@@ -163,8 +199,9 @@ export function ImageSuiteWorkspace({ tool }: Props) {
   };
 
   const reset = () => { 
-    clearResult(); 
-    setFiles([]); 
+    cleanupItems(items);
+    cleanupResult();
+    setItems([]); 
     setError(""); 
     setQuality(82); 
     setScale(2); 
@@ -178,10 +215,11 @@ export function ImageSuiteWorkspace({ tool }: Props) {
     setMargin(24); 
   };
 
-  const originalSizeSum = useMemo(() => files.reduce((acc, f) => acc + f.size, 0), [files]);
+  const originalSizeSum = useMemo(() => items.reduce((acc, item) => acc + item.file.size, 0), [items]);
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:p-6">
+      {/* منطقة الرفع */}
       <label 
         onDragEnter={(e) => { e.preventDefault(); setDragging(true); }} 
         onDragOver={(e) => e.preventDefault()} 
@@ -196,25 +234,35 @@ export function ImageSuiteWorkspace({ tool }: Props) {
         <span className="mt-2 text-xs text-slate-500">PNG, JPG or WebP · browser-only processing · paste supported</span>
       </label>
 
-      {files.length > 0 && (
+      {/* عرض الصور المرفوعة (Thumbnails) */}
+      {items.length > 0 && (
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
             <span className="text-xs text-slate-400">
-              {files.length} image{files.length === 1 ? "" : "s"} selected (Total: {(originalSizeSum / 1024 / 1024).toFixed(2)} MB)
+              {items.length} image{items.length === 1 ? "" : "s"} selected (Total: {(originalSizeSum / 1024 / 1024).toFixed(2)} MB)
             </span>
-            <button type="button" onClick={reset} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Clear</button>
+            <button type="button" onClick={reset} className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800">Clear All</button>
           </div>
 
-          <div className="mt-3 flex flex-col gap-2">
-            {files.map((file, idx) => (
-              <div key={`${file.name}-${file.lastModified}-${idx}`} className="flex items-center justify-between rounded-lg bg-slate-800/80 px-3 py-2 text-xs text-slate-300">
-                <span className="truncate max-w-[200px] sm:max-w-xs">{file.name} · {(file.size / 1024).toFixed(0)} KB</span>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {items.map((item, idx) => (
+              <div key={`${item.file.name}-${item.file.lastModified}-${idx}`} className="relative flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-2">
+                <img 
+                  src={item.previewUrl} 
+                  alt={item.file.name} 
+                  className="h-14 w-14 rounded-md object-cover border border-slate-700 shrink-0" 
+                />
                 
-                {tool === "image-to-pdf" && files.length > 1 && (
-                  <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => moveFile(idx, -1)} disabled={idx === 0} className="px-1.5 py-0.5 rounded border border-slate-700 hover:bg-slate-700 disabled:opacity-30">↑</button>
-                    <button type="button" onClick={() => moveFile(idx, 1)} disabled={idx === files.length - 1} className="px-1.5 py-0.5 rounded border border-slate-700 hover:bg-slate-700 disabled:opacity-30">↓</button>
-                    <button type="button" onClick={() => removeFile(idx)} className="px-1.5 py-0.5 rounded border border-red-500/30 text-red-400 hover:bg-red-500/20">✕</button>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-xs font-medium text-slate-200">{item.file.name}</p>
+                  <p className="text-[11px] text-slate-500">{(item.file.size / 1024).toFixed(0)} KB</p>
+                </div>
+
+                {tool === "image-to-pdf" && items.length > 1 && (
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button type="button" onClick={() => moveItem(idx, -1)} disabled={idx === 0} className="px-1 py-0.2 rounded border border-slate-700 text-[10px] hover:bg-slate-800 disabled:opacity-20">↑</button>
+                    <button type="button" onClick={() => moveItem(idx, 1)} disabled={idx === items.length - 1} className="px-1 py-0.2 rounded border border-slate-700 text-[10px] hover:bg-slate-800 disabled:opacity-20">↓</button>
+                    <button type="button" onClick={() => removeItem(idx)} className="px-1 py-0.2 rounded border border-red-500/30 text-red-400 text-[10px] hover:bg-red-500/20">✕</button>
                   </div>
                 )}
               </div>
@@ -223,7 +271,8 @@ export function ImageSuiteWorkspace({ tool }: Props) {
         </div>
       )}
 
-      {files.length > 0 && (
+      {/* خيارات التحكم */}
+      {items.length > 0 && (
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {tool === "background-remover" && (
             <div>
@@ -274,7 +323,8 @@ export function ImageSuiteWorkspace({ tool }: Props) {
         </div>
       )}
 
-      {files.length > 0 && (
+      {/* أزرار المعالجة */}
+      {items.length > 0 && (
         <div className="mt-5 flex flex-wrap gap-2">
           <button type="button" onClick={run} disabled={busy} className="rounded-lg bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
             {busy ? "Processing…" : `Run ${title}`}
@@ -285,6 +335,7 @@ export function ImageSuiteWorkspace({ tool }: Props) {
 
       {error && <div role="alert" className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
 
+      {/* عرض النتيجة ومقارنة الصور */}
       {resultUrl && (
         <div className="mt-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-500/10 pb-4">
@@ -292,12 +343,12 @@ export function ImageSuiteWorkspace({ tool }: Props) {
               <p className="text-sm font-semibold text-emerald-300">Ready for download</p>
               <p className="text-xs text-slate-400">{resultName}</p>
               
-              {resultSize && files[0] && (
+              {resultSize && items[0] && (
                 <div className="mt-1 text-xs text-slate-300 flex gap-2">
                   <span>New Size: <strong>{(resultSize / 1024).toFixed(1)} KB</strong></span>
                   {tool === "image-compressor-pro" && (
                     <span className="text-emerald-400 font-medium">
-                      ({(((files[0].size - resultSize) / files[0].size) * 100).toFixed(1)}% reduction)
+                      ({(((items[0].file.size - resultSize) / items[0].file.size) * 100).toFixed(1)}% reduction)
                     </span>
                   )}
                 </div>
@@ -307,7 +358,8 @@ export function ImageSuiteWorkspace({ tool }: Props) {
             <button type="button" onClick={download} className="rounded-lg bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-300">Download Result</button>
           </div>
 
-          {tool !== "image-to-pdf" && originalPreviewUrl && (
+          {/* المعاينة التفاعلية والمقارنة */}
+          {tool !== "image-to-pdf" && items[0] && (
             <div className="mt-4">
               <p className="text-xs text-slate-400 mb-2 font-medium">Preview Comparison (Slide to compare Original vs Result):</p>
               <div className="relative h-[350px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
@@ -317,7 +369,7 @@ export function ImageSuiteWorkspace({ tool }: Props) {
                   className="absolute inset-y-0 left-0 overflow-hidden border-r-2 border-cyan-400 bg-slate-950" 
                   style={{ width: `${compareSlider}%` }}
                 >
-                  <img src={originalPreviewUrl} alt="Original" className="h-full max-w-none object-contain" style={{ width: "100%", height: "100%" }} />
+                  <img src={itemPreviewUrl(items[0])} alt="Original" className="h-full max-w-none object-contain" style={{ width: "100%", height: "100%" }} />
                 </div>
 
                 <input 
@@ -335,6 +387,10 @@ export function ImageSuiteWorkspace({ tool }: Props) {
       )}
     </section>
   );
+}
+
+function itemPreviewUrl(item?: FileWithPreview) {
+  return item ? item.previewUrl : "";
 }
 
 function extension(format: EngineFormat) { 
