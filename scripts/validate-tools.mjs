@@ -4,8 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const failures = [];
 const root = process.cwd();
-function fail(message) { failures.push(message); }
-
+const fail = (message) => failures.push(message);
 class ElementStub { constructor(tagName, text = "", attrs = {}) { this.tagName = tagName; this.textContent = text; this.attrs = attrs; this.children = []; } getAttribute(name) { return this.attrs[name] ?? null; } }
 class DocumentStub {
   constructor(source, xml = false) { this.source = source; this.documentElement = new ElementStub("root"); this.title = (source.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").trim(); if (xml) { const rootMatch = source.match(/^\s*(?:<\?xml[^>]*>\s*)?<([\w:.-]+)[^>]*>([\s\S]*)<\/\1>\s*$/); if (!rootMatch) { this.parserError = true; return; } this.documentElement = new ElementStub(rootMatch[1], rootMatch[2]); const token = /<([\w:.-]+)(?:\s+[^>]*)?>([\s\S]*?)<\/\1>/g; let match; while ((match = token.exec(rootMatch[2]))) this.documentElement.children.push(new ElementStub(match[1], match[2])); } }
@@ -32,12 +31,14 @@ for (const slug of allSlugs) if (!unsupportedToolSlugs.has(slug) && !activeSlugs
 for (const slug of unsupportedToolSlugs) if (activeSlugs.has(slug)) fail(`Unsupported tool appears in active registry: ${slug}`);
 
 function fixture(slug, example) {
+  const exact = { "jwt-decoder": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjMifQ.", "json-to-csv": '[{"name":"Ada","age":36},{"name":"Linus","age":55}]', "percentage-calculator": "20 200", "ratio-calculator": "8 12", "average-calculator": "1 2 3 4", "median-calculator": "1 2 3 4", "standard-deviation-calculator": "1 2 3 4", "discount-calculator": "200 10", "profit-margin-calculator": "100 80", "markup-calculator": "80 100" };
+  if (exact[slug]) return exact[slug];
   if (/json-schema-validator/.test(slug)) return '{"name":"ElDevo"}\n---SCHEMA---\n{"type":"object","required":["name"]}';
   if (/json-schema-generator/.test(slug)) return '{"name":"ElDevo","count":2}';
   if (/jsonpath|json-path/.test(slug)) return '{"users":[{"name":"Ada"}]}\n---PATH---\n$.users[0].name';
   if (/json-diff/.test(slug)) return '{"a":1}\n---DIFF---\n{"a":2}';
   if (/text-diff|text-compare/.test(slug)) return 'left\n---DIFF---\nright';
-  if (/json-to-(csv|xml|javascript|typescript)/.test(slug)) return '{"name":"Ada","age":36}';
+  if (/json-to-(xml|javascript|typescript)/.test(slug)) return '{"name":"Ada","age":36}';
   if (/xml-to-json/.test(slug)) return '<root><name>Ada</name><item>1</item><item>2</item></root>';
   if (/json-unescape/.test(slug)) return 'hello\\nworld';
   if (/base64-decoder/.test(slug)) return 'RWxEZXZv';
@@ -65,7 +66,15 @@ function fixture(slug, example) {
   if (/html-to-markdown/.test(slug)) return '<h1>Hello</h1><p>World</p>';
   if (/markdown-to-html/.test(slug)) return '# Hello\n\nWorld';
   if (/html-(formatter|minifier|validator)/.test(slug)) return '<!doctype html><html><head><title>Test</title></head><body><h1>Hello</h1></body></html>';
-  if (/calculator/.test(slug) || /percentage|ratio|average|median|standard-deviation|discount|profit-margin|markup|interest|break-even/.test(slug)) { if (/age-calculator/.test(slug)) return '2000-01-01'; if (/date-difference/.test(slug)) return '2024-01-01\n2024-01-10'; if (/time-duration/.test(slug)) return '09:30\n10:45'; if (/compound-interest/.test(slug)) return '1000 5 2 12'; if (/simple-interest/.test(slug)) return '1000 5 2'; if (/break-even/.test(slug)) return '1000 50 30'; if (/percentage-change/.test(slug)) return '100 120'; if (/percentage-calculator/.test(slug)) return '20 200'; if (/discount/.test(slug)) return '200 10'; if (/profit-margin|markup/.test(slug)) return '100 80'; return '1 2 3 4'; }
+  if (/css-(gradient|box-shadow|border-radius|flexbox|grid)/.test(slug)) return '#0ea5e9 0%, #fff 100%';
+  if (/javascript-(formatter|minifier|escape)/.test(slug)) return 'function add(a,b){return a+b;}';
+  if (/age-calculator/.test(slug)) return '2000-01-01';
+  if (/date-difference/.test(slug)) return '2024-01-01\n2024-01-10';
+  if (/time-duration/.test(slug)) return '09:30\n10:45';
+  if (/compound-interest/.test(slug)) return '1000 5 2 12';
+  if (/simple-interest/.test(slug)) return '1000 5 2';
+  if (/break-even/.test(slug)) return '1000 50 30';
+  if (/percentage-change/.test(slug)) return '100 120';
   if (/hex-color|color-picker/.test(slug)) return '#0ea5e9';
   if (/rgb-to-hex/.test(slug)) return '14 165 233';
   if (/env-generator/.test(slug)) return 'DATABASE_URL\nAPI_KEY';
