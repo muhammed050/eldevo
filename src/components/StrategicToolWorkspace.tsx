@@ -191,7 +191,7 @@ function transform(slug: string, input: string): string {
     case "favicon-generator":
       return "Use the image tools to prepare a square PNG, then export an ICO in your browser.";
     default:
-      return generic(slug, text);
+      return generic(slug);
   }
 }
 
@@ -454,7 +454,7 @@ function twitterTags(s: string) {
   const [title = "", description = ""] = s.split(/\n/);
   return `<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${escapeHtml(title)}">\n<meta name="twitter:description" content="${escapeHtml(description)}">`;
 }
-function generic(slug: string, s: string) {
+function generic(slug: string) {
   return `${slug.replaceAll("-", " ").replace(/\b\w/g, (c) => c.toUpperCase())}\n\nInput received successfully. This browser-first tool is ready for the next transformation.`;
 }
 

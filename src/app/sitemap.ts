@@ -25,10 +25,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/disclaimer/",
   ];
   const strategicPaths = strategicToolMeta.map((tool) => `/tools/${tool.slug}/`);
-  return [...new Set([...staticPaths, ...allToolPaths, ...strategicPaths, ...imageToolPaths])].map((path) => ({
-    url: `https://eldevo.com${path}`,
-    lastModified: new Date(),
-    changeFrequency: path === "/" ? "weekly" : "monthly",
-    priority: path === "/" ? 1 : 0.8,
-  }));
+  return [...new Set([...staticPaths, ...allToolPaths, ...strategicPaths, ...imageToolPaths])].map(
+    (path) => ({
+      url: `https://eldevo.com${path}`,
+      lastModified: new Date(),
+      changeFrequency: path === "/" ? "weekly" : "monthly",
+      priority: path === "/" ? 1 : 0.8,
+    }),
+  );
 }

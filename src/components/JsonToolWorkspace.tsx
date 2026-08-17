@@ -55,13 +55,20 @@ function sortJson(value: JsonValue): JsonValue {
 }
 
 function jsonToCsv(value: JsonValue): string {
-  if (!Array.isArray(value) || !value.length || value.some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
+  if (
+    !Array.isArray(value) ||
+    !value.length ||
+    value.some((row) => !row || typeof row !== "object" || Array.isArray(row))
+  ) {
     throw new Error("Enter a JSON array of objects.");
   }
   const rows = value as Record<string, unknown>[];
   const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
   const cell = (item: unknown) => `"${String(item ?? "").replaceAll('"', '""')}"`;
-  return [keys.map(cell).join(","), ...rows.map((row) => keys.map((key) => cell(row[key])).join(","))].join("\n");
+  return [
+    keys.map(cell).join(","),
+    ...rows.map((row) => keys.map((key) => cell(row[key])).join(",")),
+  ].join("\n");
 }
 
 function jsonToTs(value: JsonValue): string {
@@ -75,15 +82,21 @@ function jsonToTs(value: JsonValue): string {
     return typeof item;
   };
   const fields = Object.entries(value as Record<string, unknown>)
-    .map(([key, item]) => `  ${/^[$A-Z_a-z][$\w]*$/.test(key) ? key : JSON.stringify(key)}: ${typeOf(item)};`)
+    .map(
+      ([key, item]) =>
+        `  ${/^[$A-Z_a-z][$\w]*$/.test(key) ? key : JSON.stringify(key)}: ${typeOf(item)};`,
+    )
     .join("\n");
   return `export interface Root {\n${fields}\n}`;
 }
 
 function jsonToXml(value: JsonValue, root = "root"): string {
-  const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  if (value === null || typeof value !== "object") return `<${root}>${escape(String(value ?? ""))}</${root}>`;
-  if (Array.isArray(value)) return `<${root}>${value.map((item) => jsonToXml(item, "item")).join("")}</${root}>`;
+  const escape = (text: string) =>
+    text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  if (value === null || typeof value !== "object")
+    return `<${root}>${escape(String(value ?? ""))}</${root}>`;
+  if (Array.isArray(value))
+    return `<${root}>${value.map((item) => jsonToXml(item, "item")).join("")}</${root}>`;
   return `<${root}>${Object.entries(value as Record<string, unknown>)
     .map(([key, item]) => jsonToXml(item, key.replace(/[^\w-]/g, "_")))
     .join("")}</${root}>`;
@@ -114,16 +127,30 @@ function transform(slug: string, input: string): string {
     case "json-to-typescript-interface":
       return jsonToTs(value);
     case "json-schema-generator": {
-      const properties = value && typeof value === "object" && !Array.isArray(value)
-        ? Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, { type: Array.isArray(item) ? "array" : item === null ? "null" : typeof item }]))
-        : {};
-      return JSON.stringify({ $schema: "https://json-schema.org/draft/2020-12/schema", type: "object", properties }, null, 2);
+      const properties =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? Object.fromEntries(
+              Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+                key,
+                { type: Array.isArray(item) ? "array" : item === null ? "null" : typeof item },
+              ]),
+            )
+          : {};
+      return JSON.stringify(
+        { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object", properties },
+        null,
+        2,
+      );
     }
     case "jsonpath-tester": {
       const separator = input.match(/\r?\n---PATH---\r?\n/i);
       if (!separator) return JSON.stringify(value, null, 2);
       const [, path] = input.split(/\r?\n---PATH---\r?\n/i);
-      const parts = (path ?? "").trim().replace(/^\$\.?/, "").split(".").filter(Boolean);
+      const parts = (path ?? "")
+        .trim()
+        .replace(/^\$\.?/, "")
+        .split(".")
+        .filter(Boolean);
       let current: unknown = value;
       for (const part of parts) current = (current as Record<string, unknown> | undefined)?.[part];
       return JSON.stringify(current, null, 2);
@@ -158,7 +185,9 @@ export function JsonToolWorkspace({ slug }: { slug: string }) {
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-          <div className="border-b border-slate-800 px-3 py-2 text-xs uppercase tracking-widest text-slate-500">Input</div>
+          <div className="border-b border-slate-800 px-3 py-2 text-xs uppercase tracking-widest text-slate-500">
+            Input
+          </div>
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -168,17 +197,56 @@ export function JsonToolWorkspace({ slug }: { slug: string }) {
           />
         </section>
         <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-          <div className="border-b border-slate-800 px-3 py-2 text-xs uppercase tracking-widest text-slate-500">Output</div>
-          <textarea value={output} readOnly placeholder="Your result will appear here…" className="min-h-72 w-full resize-y bg-slate-950 p-4 font-mono text-sm text-slate-200 outline-none" />
+          <div className="border-b border-slate-800 px-3 py-2 text-xs uppercase tracking-widest text-slate-500">
+            Output
+          </div>
+          <textarea
+            value={output}
+            readOnly
+            placeholder="Your result will appear here…"
+            className="min-h-72 w-full resize-y bg-slate-950 p-4 font-mono text-sm text-slate-200 outline-none"
+          />
         </section>
       </div>
-      {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 font-mono text-xs leading-6 text-rose-300">{error}</div>}
+      {error && (
+        <div
+          role="alert"
+          className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 font-mono text-xs leading-6 text-rose-300"
+        >
+          {error}
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={run} className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950">Run tool</button>
-        <button type="button" onClick={() => navigator.clipboard.writeText(output)} disabled={!output} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 disabled:opacity-40">Copy result</button>
-        <button type="button" onClick={() => { setInput(""); setOutput(""); setError(""); }} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300">Clear</button>
+        <button
+          type="button"
+          onClick={run}
+          className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
+        >
+          Run tool
+        </button>
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(output)}
+          disabled={!output}
+          className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 disabled:opacity-40"
+        >
+          Copy result
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setInput("");
+            setOutput("");
+            setError("");
+          }}
+          className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300"
+        >
+          Clear
+        </button>
       </div>
-      <p className="text-xs text-slate-600">Client-side JSON processing · BOM and fenced JSON are handled automatically.</p>
+      <p className="text-xs text-slate-600">
+        Client-side JSON processing · BOM and fenced JSON are handled automatically.
+      </p>
     </div>
   );
 }

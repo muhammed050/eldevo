@@ -11,7 +11,11 @@ export function generateStaticParams() {
   return allTools.map((tool) => ({ slug: tool.slug }));
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const tool = allTools.find((item) => item.slug === slug);
   if (!tool) return {};
