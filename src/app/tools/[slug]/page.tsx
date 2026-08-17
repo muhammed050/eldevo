@@ -12,7 +12,11 @@ export function generateStaticParams() {
   return allTools.map((tool) => ({ slug: tool.slug }));
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const tool = allTools.find((item) => item.slug === slug);
   if (!tool) return {};
@@ -23,5 +27,10 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const tool = allTools.find((item) => item.slug === slug);
   if (!tool) notFound();
-  return <ToolPageContent meta={{ ...tool, kind: "tool" } as typeof tool & { kind: "tool" }} path={`/tools/${tool.slug}/`} />;
+  return (
+    <ToolPageContent
+      meta={{ ...tool, kind: "tool" } as typeof tool & { kind: "tool" }}
+      path={`/tools/${tool.slug}/`}
+    />
+  );
 }

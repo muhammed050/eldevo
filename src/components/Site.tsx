@@ -20,6 +20,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { categories, searchTools, toolEntries, type ToolEntry } from "@/lib/tool-registry";
+import { homeFaqs } from "@/config/home-faqs";
 
 const FAVORITES_KEY = "eldevo:favorites";
 const RECENT_KEY = "eldevo:recent";
@@ -440,6 +441,27 @@ export function Home() {
           converters execute in the browser so sensitive tokens, source snippets and data files do
           not need to leave your machine.
         </p>
+        <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">
+          Most developer utility sites route your input through a backend before returning a result.
+          ElDevo takes a different approach: every tool on this site — from the JSON formatter and
+          JWT decoder to the Base64, regex and SQL utilities — runs as JavaScript in your own
+          browser tab. There is no upload step, no processing queue and no server-side log of what
+          you pasted in. That also means the tools keep working once the page has loaded, even if
+          your connection drops.
+        </p>
+      </section>
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+        <h2 className="text-xl font-semibold text-slate-100">Frequently Asked Questions</h2>
+        <div className="mt-4 divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900">
+          {homeFaqs.map((item) => (
+            <details key={item.q} className="p-5">
+              <summary className="cursor-pointer text-sm font-medium text-slate-200">
+                {item.q}
+              </summary>
+              <p className="mt-3 text-sm leading-6 text-slate-400">{item.a}</p>
+            </details>
+          ))}
+        </div>
       </section>
     </>
   );

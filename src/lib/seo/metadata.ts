@@ -5,6 +5,7 @@ import { absoluteUrl } from "./urls";
 export type SeoPageType = "tool" | "converter" | "cheatsheet";
 
 type SeoItem = Pick<ToolMeta, "slug" | "title" | "description"> & {
+  h1?: string;
   primaryKeyword?: string;
   secondaryKeywords?: string[];
 };
@@ -41,8 +42,10 @@ export function createSeoMetadata({ item, type }: MetadataOptions): Metadata {
     ...(item.secondaryKeywords ?? []),
   ];
 
+  const pageTitle = item.h1 ?? item.title;
+
   return {
-    title: item.title,
+    title: pageTitle,
     description: item.description,
 
     ...(keywords.length > 0 ? { keywords } : {}),
@@ -60,13 +63,13 @@ export function createSeoMetadata({ item, type }: MetadataOptions): Metadata {
       type: "website",
       url: canonicalUrl,
       siteName: "ElDevo",
-      title: item.title,
+      title: pageTitle,
       description: item.description,
     },
 
     twitter: {
-      card: "summary",
-      title: item.title,
+      card: "summary_large_image",
+      title: pageTitle,
       description: item.description,
     },
   };

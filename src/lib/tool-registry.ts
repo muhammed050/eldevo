@@ -6,7 +6,11 @@ export type ToolEntry = ToolMeta & { kind: "tool" | "converter"; href: string };
 const allTools = [...tools, ...strategicToolMeta];
 export const toolEntries: ToolEntry[] = [
   ...allTools.map((tool) => ({ ...tool, kind: "tool" as const, href: `/tools/${tool.slug}/` })),
-  ...converters.map((tool) => ({ ...tool, kind: "converter" as const, href: `/converters/${tool.slug}/` })),
+  ...converters.map((tool) => ({
+    ...tool,
+    kind: "converter" as const,
+    href: `/converters/${tool.slug}/`,
+  })),
 ];
 
 export const toolBySlug = new Map(toolEntries.map((tool) => [tool.slug, tool]));
@@ -17,7 +21,16 @@ export function searchTools(query: string, category = "All") {
   return toolEntries
     .filter((tool) => category === "All" || tool.category === category)
     .map((tool) => {
-      const haystack = [tool.title, tool.h1, tool.primaryKeyword, tool.category, tool.description, ...tool.secondaryKeywords].join(" ").toLowerCase();
+      const haystack = [
+        tool.title,
+        tool.h1,
+        tool.primaryKeyword,
+        tool.category,
+        tool.description,
+        ...tool.secondaryKeywords,
+      ]
+        .join(" ")
+        .toLowerCase();
       let score = q ? 0 : 1;
       if (q && tool.title.toLowerCase().startsWith(q)) score += 100;
       if (q && tool.primaryKeyword.toLowerCase() === q) score += 90;

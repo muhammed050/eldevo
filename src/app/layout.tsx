@@ -33,16 +33,48 @@ export const metadata: Metadata = {
     url: "https://eldevo.com/",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "ElDevo — Developer Tools",
     description: "Fast, private browser-based developer tools.",
   },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+};
+
+const websiteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "ElDevo",
+  url: "https://eldevo.com/",
+  description: "Fast, private, browser-based developer micro-tools.",
+};
+
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "ElDevo",
+  url: "https://eldevo.com/",
+  logo: "https://eldevo.com/icon-512.png",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
         <Header />
         <main className="min-h-[calc(100vh-7rem)]">{children}</main>
         <Footer />
