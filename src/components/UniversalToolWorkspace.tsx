@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ImageToolWorkspace } from "@/components/image-tools/ImageToolWorkspace";
 import { loadToolEngine } from "@/lib/engines/loader";
 
 const samples: Record<string, string> = {
@@ -22,6 +23,8 @@ const samples: Record<string, string> = {
 };
 
 export function UniversalToolWorkspace({ slug }: { slug: string }) {
+  if (slug === "image-editor") return <ImageToolWorkspace operation="editor" />;
+
   const [input, setInput] = useState(samples[slug] ?? "");
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
