@@ -1,6 +1,6 @@
-import { converters, tools, type ToolMeta } from "../config/tools.config";
-import { strategicToolMeta } from "../config/strategic-tools";
-import { executeTool, ToolUnsupportedError } from "./tools/real-engine";
+import { converters, tools, type ToolMeta } from "../config/tools.config.ts";
+import { strategicToolMeta } from "../config/strategic-tools.ts";
+import { executeTool, ToolUnsupportedError } from "./tools/real-engine.ts";
 
 export type ToolExecutor = (input: string) => Promise<string>;
 export type ToolStatus = "active" | "unsupported";
@@ -13,10 +13,6 @@ export interface ToolDefinition extends ToolMeta {
   validate: (input: string) => void;
 }
 
-/**
- * Explicitly unsupported capabilities are kept out of the active product surface.
- * This is the only status gate; there is no UI-level fallback.
- */
 export const unsupportedToolSlugs = new Set<string>([
   "http-status-code-checker",
   "md5-generator",
