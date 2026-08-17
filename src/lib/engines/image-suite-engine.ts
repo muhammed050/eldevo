@@ -137,5 +137,12 @@ export async function imagesToPdf(files: File[], size: "A4" | "A5" | "Letter", l
   const xrefOffset=offset; let xref=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`; for(let i=1;i<=objects.length;i++) xref += `${String(offsets[i]).padStart(10,"0")} 00000 n \n`;
   xref += `trailer\n<< /Size ${objects.length+1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
   chunks.push(ascii(xref));
-  return new Blob(chunks,{type:"application/pdf"});
+  return new Blob(
+  chunks.map((chunk) => {
+    const buffer = new ArrayBuffer(chunk.byteLength);
+    new Uint8Array(buffer).set(chunk);
+    return buffer;
+  }),
+  { type: "application/pdf" }
+);
 }
