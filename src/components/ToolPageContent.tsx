@@ -2,16 +2,26 @@ import Link from "next/link";
 import type { ToolMeta } from "@/config/tools.config";
 import { AdSlot, PrivacyBanner } from "@/components/Site";
 import { UniversalToolWorkspace } from "@/components/UniversalToolWorkspace";
+import { ImageToolWorkspace } from "@/components/image-tools/ImageToolWorkspace";
+
+const imageOperations = {
+  "image-resizer": "resize",
+  "image-compressor": "compress",
+  "image-cropper": "crop",
+  "image-converter": "convert",
+  "image-rotator": "rotate",
+} as const;
 
 export function ToolPageContent({ meta, path }: { meta: ToolMeta & { kind: "tool" | "converter" }; path: string }) {
   const related = meta.related.map((href) => ({ href, label: href.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ") ?? "Related tool" }));
-  const webApplication = { "@context": "https://schema.org", "@type": "WebApplication", name: meta.title, url: `https://eldevo.com${path}`, applicationCategory: "DeveloperApplication", operatingSystem: "Any", description: meta.description, browserRequirements: "Requires JavaScript", offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } };
+  const webApplication = { "@context": "https://schema.org", "@type": "WebApplication", name: meta.title, url: `https://eldevo.com${path}`, applicationCategory: meta.category === "Image Tools" ? "MultimediaApplication" : "DeveloperApplication", operatingSystem: "Any", description: meta.description, browserRequirements: "Requires JavaScript", offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } };
   const faq = { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: meta.faqs.map((item) => ({ "@type": "Question", name: item.q, acceptedAnswer: { "@type": "Answer", text: item.a } })) };
   const breadcrumbs = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
     { "@type": "ListItem", position: 1, name: "Home", item: "https://eldevo.com/" },
     { "@type": "ListItem", position: 2, name: meta.category, item: `https://eldevo.com/${meta.kind === "converter" ? "converters" : "tools"}/` },
     { "@type": "ListItem", position: 3, name: meta.title, item: `https://eldevo.com${path}` },
   ] };
+  const imageOperation = imageOperations[meta.slug as keyof typeof imageOperations];
 
   return <article className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplication) }} />
@@ -20,7 +30,7 @@ export function ToolPageContent({ meta, path }: { meta: ToolMeta & { kind: "tool
     <nav aria-label="Breadcrumb" className="mb-5 text-xs text-slate-500"><Link href="/" className="hover:text-cyan-400">Home</Link><span className="px-2">/</span><Link href={meta.kind === "converter" ? "/converters/" : "/tools/"} className="hover:text-cyan-400">{meta.kind === "converter" ? "Converters" : meta.category}</Link><span className="px-2">/</span><span className="text-slate-300">{meta.title}</span></nav>
     <header className="mb-7"><span className="rounded-full border border-cyan-500/25 bg-cyan-500/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[.18em] text-cyan-300">{meta.category}</span><h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{meta.h1}</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{meta.description}</p></header>
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]"><div className="min-w-0">
-      <PrivacyBanner /><div className="mt-5"><UniversalToolWorkspace slug={meta.slug} /></div><div className="mt-6"><AdSlot /></div>
+      <PrivacyBanner /><div className="mt-5">{imageOperation ? <ImageToolWorkspace operation={imageOperation} /> : <UniversalToolWorkspace slug={meta.slug} />}</div><div className="mt-6"><AdSlot /></div>
       <section className="mt-12"><h2 className="text-xl font-semibold">How to Use {meta.title}</h2><ol className="mt-4 grid gap-3">{meta.usageSteps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6 text-slate-400"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-slate-800 font-mono text-xs text-cyan-300">{index + 1}</span>{step}</li>)}</ol></section>
       <section className="mt-12"><h2 className="text-xl font-semibold">Why Use This Tool?</h2><ul className="mt-4 grid gap-2 text-sm leading-6 text-slate-400">{meta.features.map((feature) => <li key={feature}>✓ {feature}</li>)}</ul><p className="mt-4 text-sm leading-6 text-slate-500">{meta.searchIntent}</p></section>
       <section className="mt-12"><h2 className="text-xl font-semibold">Example</h2><div className="mt-4 grid gap-4 md:grid-cols-2"><CodeBlock label="Input" value={meta.codeExample.input} /><CodeBlock label="Output" value={meta.codeExample.output} /></div></section>
