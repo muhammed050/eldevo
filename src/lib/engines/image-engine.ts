@@ -20,6 +20,9 @@ export type ImageOptions = {
   saturation?: number;
   grayscale?: number;
   blur?: number;
+  invert?: number;
+  sepia?: number;
+  hue?: number;
 };
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -31,12 +34,9 @@ export async function processImage(file: File, options: ImageOptions): Promise<B
 
   const bitmap = await createImageBitmap(file);
   try {
-    if (bitmap.width * bitmap.height > MAX_PIXELS) {
-      throw new Error("Image dimensions are too large. Please resize it first.");
-    }
+    if (bitmap.width * bitmap.height > MAX_PIXELS) throw new Error("Image dimensions are too large. Please resize it first.");
 
-    const format = options.format ??
-      (file.type === "image/png" ? "image/png" : file.type === "image/webp" ? "image/webp" : "image/jpeg");
+    const format = options.format ?? (file.type === "image/png" ? "image/png" : file.type === "image/webp" ? "image/webp" : "image/jpeg");
     const quality = Math.min(1, Math.max(0.1, options.quality ?? 0.85));
     const sourceW = bitmap.width;
     const sourceH = bitmap.height;
@@ -99,7 +99,10 @@ export async function processImage(file: File, options: ImageOptions): Promise<B
     const saturation = Math.max(0, options.saturation ?? 100);
     const grayscale = Math.min(100, Math.max(0, options.grayscale ?? 0));
     const blur = Math.max(0, options.blur ?? 0);
-    ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) grayscale(${grayscale}%) blur(${blur}px)`;
+    const invert = Math.min(100, Math.max(0, options.invert ?? 0));
+    const sepia = Math.min(100, Math.max(0, options.sepia ?? 0));
+    const hue = Math.max(-360, Math.min(360, options.hue ?? 0));
+    ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) grayscale(${grayscale}%) blur(${blur}px) invert(${invert}%) sepia(${sepia}%) hue-rotate(${hue}deg)`;
 
     ctx.save();
     ctx.translate(outW / 2, outH / 2);
@@ -112,11 +115,7 @@ export async function processImage(file: File, options: ImageOptions): Promise<B
     ctx.restore();
 
     return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("The browser could not export the image."))),
-        format,
-        format === "image/png" ? undefined : quality,
-      );
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("The browser could not export the image."))), format, format === "image/png" ? undefined : quality);
     });
   } finally {
     bitmap.close();
