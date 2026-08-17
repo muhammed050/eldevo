@@ -22,7 +22,7 @@ export async function loadToolEngine(slug: string): Promise<ToolEngine> {
   const loader = coreLoaders[slug];
   if (loader) return (await loader()).run;
   const legacy = await import("@/lib/tools/real-engine");
-  return legacy.executeTool;
+  return (input: string) => legacy.executeTool(slug, input);
 }
 
 export const isCoreEngine = (slug: string) => slug in coreLoaders;
