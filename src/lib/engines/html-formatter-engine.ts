@@ -1,0 +1,2 @@
+import { requireInput } from "./shared";
+export const run = (input: string) => { requireInput(input); const source = input.trim().replace(/>\s+</g, "><"); let depth = 0; return source.replace(/<[^>]+>/g, tag => { const closing = /^<\//.test(tag); const self = /\/\s*>$/.test(tag) || /^<(!DOCTYPE|input|meta|link|img|br|hr)/i.test(tag); if (closing) depth = Math.max(0, depth - 1); const line = `${"  ".repeat(depth)}${tag}`; if (!closing && !self) depth += 1; return `\n${line}`; }).trim(); };

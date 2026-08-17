@@ -1,0 +1,2 @@
+import { pretty, requireInput } from "./shared";
+export const run = (input: string) => { requireInput(input); const text = input; const words = text.trim() ? text.trim().split(/\s+/).length : 0; const chars = [...text].length; const lines = text ? text.split(/\r?\n/).length : 0; const sentences = text.trim() ? text.split(/(?<=[.!?])\s+/u).filter(Boolean).length : 0; return pretty({ words, characters: chars, charactersWithoutSpaces: [...text].filter(c => !/\s/u.test(c)).length, lines, sentences, readingTimeMinutes: words ? Math.max(1, Math.ceil(words / 200)) : 0 }); };

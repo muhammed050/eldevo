@@ -1,0 +1,3 @@
+import { requireInput } from "./shared";
+const capitalize = (s: string) => s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : s;
+export const run = (input: string) => { requireInput(input); const words = input.trim().split(/\s+/); return `lowercase: ${input.toLowerCase()}\nUPPERCASE: ${input.toUpperCase()}\nTitle Case: ${words.map(capitalize).join(" ")}\ncamelCase: ${words.map((w, i) => i ? capitalize(w) : w.toLowerCase()).join("")}\nPascalCase: ${words.map(capitalize).join("")}\nkebab-case: ${words.map(w => w.toLowerCase()).join("-")}\nsnake_case: ${words.map(w => w.toLowerCase()).join("_")}`; };

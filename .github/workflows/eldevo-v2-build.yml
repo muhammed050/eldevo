@@ -1,9 +1,13 @@
-name: ElDevo v2 build
+name: ElDevo production build
 
 on:
   push:
     branches:
-      - eldevo-v2-seo-tools
+      - main
+      - rebuild/**
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -17,6 +21,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Validate core engines
+        run: npm run validate-tools
+      - name: Typecheck
+        run: npm run typecheck
       - name: Build Next.js
         run: |
           set -o pipefail
@@ -25,17 +33,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: eldevo-v2-build-log
+          name: eldevo-build-log
           path: build.log
           retention-days: 7
-      - name: Package source
-        run: |
-          rm -rf package/ .next out
-          mkdir package
-          rsync -a --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='out' ./ package/
-          cd package && zip -r ../eldevo-v2-ready.zip .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: eldevo-v2-ready
-          path: eldevo-v2-ready.zip
-          retention-days: 14
