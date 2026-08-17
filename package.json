@@ -13,7 +13,7 @@
     "test": "npm run test:unit",
     "test:tools": "node --experimental-strip-types --test tests/tools.test.mjs",
     "test:unit": "npm run test:tools",
-    "test:coverage": "node --experimental-strip-types --experimental-test-coverage --test tests/tools.test.mjs --test-coverage-lines=90 --test-coverage-functions=90 --test-coverage-branches=85"
+    "test:coverage": "node --experimental-strip-types --experimental-test-coverage --test-coverage-lines=90 --test-coverage-functions=90 --test-coverage-branches=85 --test tests/tools.test.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
