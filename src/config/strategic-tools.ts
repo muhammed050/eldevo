@@ -1,6 +1,6 @@
-import type { FAQ, ToolMeta } from "./tools.config";
-import { tools, converters } from "./tools.config";
-import { strategicTools } from "./seo-tools.catalog";
+import type { FAQ, ToolMeta } from "./tools.config.ts";
+import { tools, converters } from "./tools.config.ts";
+import { strategicTools } from "./seo-tools.catalog.ts";
 
 type ContentPack = {
   features: string[];
@@ -388,62 +388,26 @@ const faq = (title: string): FAQ[] => [
   },
   {
     q: "Is my data uploaded to a server?",
-    a: "No. This tool processes your input directly in your browser; nothing is uploaded to ElDevo servers.",
-  },
-  { q: "Do I need an account?", a: "No signup or account is required to use this tool." },
-  {
-    q: "Can I copy or download the result?",
-    a: "Yes, the result can be copied to your clipboard or downloaded when the operation produces a file.",
+    a: "No. Tool processing is performed locally in your browser unless the tool explicitly says otherwise.",
   },
 ];
 
-type LinkTarget = { slug: string; title: string; category: string; path: string };
-
-const linkPool: LinkTarget[] = [
-  ...tools.map((tool) => ({
-    slug: tool.slug,
-    title: tool.title,
-    category: tool.category,
-    path: `/tools/${tool.slug}/`,
-  })),
-  ...converters.map((tool) => ({
-    slug: tool.slug,
-    title: tool.title,
-    category: tool.category,
-    path: `/converters/${tool.slug}/`,
-  })),
-  ...strategicTools.map((tool) => ({
-    slug: tool.slug,
-    title: tool.title,
-    category: tool.category,
-    path: `/tools/${tool.slug}/`,
-  })),
-];
-
-function relatedFor(slug: string, category: string): string[] {
-  return linkPool
-    .filter((item) => item.slug !== slug && item.category === category)
-    .slice(0, 4)
-    .map((item) => item.path);
-}
-
-export const strategicToolMeta: ToolMeta[] = strategicTools.map((tool) => {
-  const pack = contentPacks[tool.category] ?? defaultPack;
+export const strategicToolMeta: ToolMeta[] = strategicTools.map((item) => {
+  const base = [...tools, ...converters].find((tool) => tool.slug === item.slug);
+  const pack = contentPacks[item.category] ?? defaultPack;
   return {
-    slug: tool.slug,
-    title: tool.title,
-    h1: `Free Online ${tool.title}`,
-    category: tool.category,
-    primaryKeyword: tool.keyword,
-    secondaryKeywords: [`${tool.keyword} online`, `free ${tool.keyword}`, `${tool.keyword} tool`],
-    searchIntent: `Use ${tool.title} online for a fast, browser-based result with no signup and no file uploads.`,
-    description: tool.description,
-    features: pack.features,
-    usageSteps: pack.usageSteps.map((step) => step.replace(/\{title\}/g, tool.title)),
-    codeExample: pack.example,
-    faqs: [...faq(tool.title), ...pack.extraFaqs],
-    related: relatedFor(tool.slug, tool.category),
+    slug: item.slug,
+    title: base?.title ?? item.title,
+    h1: base?.h1 ?? `Free ${item.title}`,
+    category: base?.category ?? item.category,
+    primaryKeyword: item.keyword,
+    secondaryKeywords: base?.secondaryKeywords ?? [],
+    searchIntent: base?.searchIntent ?? `Use ${item.title} directly in your browser.`,
+    description: item.description,
+    features: base?.features ?? pack.features,
+    usageSteps: base?.usageSteps ?? pack.usageSteps,
+    codeExample: base?.codeExample ?? pack.example,
+    faqs: [...(base?.faqs ?? faq(item.title)), ...pack.extraFaqs],
+    related: base?.related ?? [],
   };
 });
-
-export const strategicToolSlugs = new Set(strategicToolMeta.map((tool) => tool.slug));
