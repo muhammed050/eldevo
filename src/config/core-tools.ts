@@ -32,6 +32,11 @@ export const coreTools: ToolMeta[] = [
   make("json-schema-validator", "JSON Schema Validator", "JSON", "json schema validator", "Validate common JSON type, required-property and property-type rules locally."),
   make("cron-generator", "Cron Expression Helper", "Generators", "cron generator", "Inspect and validate standard five-field cron expressions."),
   make("text-stats", "Text Statistics", "Text", "text statistics", "Measure words, characters, lines, sentences and reading time."),
+  make("background-remover", "Background Remover", "Images", "background remover", "Remove simple solid-color image backgrounds locally and export transparent PNG."),
+  make("image-upscaler", "Image Upscaler", "Images", "image upscaler", "Upscale PNG, JPG and WebP images 2x or 4x locally with high-quality browser canvas scaling."),
+  make("image-compressor-pro", "Image Compressor Pro", "Images", "image compressor", "Compress JPG, PNG and WebP images locally with quality and optional maximum-width controls."),
+  make("social-media-image-resizer", "Social Media Image Resizer", "Images", "social media image resizer", "Resize images for Instagram, TikTok, YouTube, Facebook, X and LinkedIn using ready-made dimensions."),
+  make("image-to-pdf", "Image to PDF", "Images", "image to pdf", "Convert up to 30 PNG, JPG or WebP images into a multi-page PDF locally in your browser."),
   {
     ...make("image-editor", "Image Editor", "Images", "image editor", "Edit PNG, JPG and WebP images in your browser with crop, resize, rotation, flips, color adjustments, blur and local export."),
     features: ["PNG, JPG and WebP support", "Crop, resize, rotate and flip", "Brightness, contrast, saturation, grayscale and blur", "Live preview and Reset", "Processed locally in your browser"],
