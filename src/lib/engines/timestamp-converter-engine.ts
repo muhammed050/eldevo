@@ -1,0 +1,2 @@
+import { pretty, requireInput } from "./shared";
+export const run = (input: string) => { requireInput(input); const n = Number(input.trim()); if (!Number.isFinite(n)) throw new Error("Enter a valid Unix timestamp."); const ms = Math.abs(n) < 1e12 ? n * 1000 : n; const date = new Date(ms); if (Number.isNaN(date.getTime())) throw new Error("Timestamp is out of range."); return pretty({ input: n, unit: Math.abs(n) < 1e12 ? "seconds" : "milliseconds", iso: date.toISOString(), unixSeconds: Math.floor(ms / 1000), unixMilliseconds: ms }); };

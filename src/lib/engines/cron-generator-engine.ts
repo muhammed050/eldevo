@@ -1,0 +1,2 @@
+import { requireInput } from "./shared";
+export const run = (input: string) => { requireInput(input); const fields = input.trim().split(/\s+/); if (![5, 6, 7].includes(fields.length)) throw new Error("Enter a standard 5-field cron expression, or 6/7-field expression with seconds/year."); const names = ["minute", "hour", "day of month", "month", "day of week"]; return fields.slice(0, 5).map((v, i) => `${names[i]}: ${v}`).join("\n") + `\n\nExpression: ${fields.join(" ")}`; };

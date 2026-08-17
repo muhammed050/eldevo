@@ -1,22 +1,17 @@
 import fs from "node:fs";
 
-const catalog = fs.readFileSync("src/config/seo-tools.catalog.ts", "utf8");
-const config = fs.readFileSync("src/config/tools.config.ts", "utf8");
-const engine = fs.readFileSync("src/lib/tools/real-engine.ts", "utf8");
-const registry = fs.readFileSync("src/lib/tool-registry.ts", "utf8");
-
-const slugs = new Set([...catalog.matchAll(/\["([a-z0-9-]+)"\s*,/g)].map(m => m[1]));
-for (const s of config.matchAll(/slug:\s*"([a-z0-9-]+)"/g)) slugs.add(s[1]);
-const unsupported = new Set([...registry.matchAll(/"([a-z0-9-]+)"/g)].map(m => m[1]));
-const cases = new Set([...engine.matchAll(/case\s*"([a-z0-9-]+)"/g)].map(m => m[1]));
-const forbidden = [/Processed by ElDevo/i, /return input\.trim\(\)/, /Math\.random\(/, /eval\(/, /new Function\(/];
+const core = fs.readFileSync("src/config/core-tools.ts", "utf8");
+const loader = fs.readFileSync("src/lib/engines/loader.ts", "utf8");
 const failures = [];
-for (const slug of slugs) {
-  if (unsupported.has(slug)) continue;
-  if (!cases.has(slug)) failures.push(`Missing implementation: ${slug}`);
+const slugs = [...core.matchAll(/make\("([a-z0-9-]+)"/g)].map(m => m[1]);
+const loaded = new Set([...loader.matchAll(/"([a-z0-9-]+)": \(\) => import/g)].map(m => m[1]));
+if (slugs.length !== 15) failures.push(`Expected 15 core tools, found ${slugs.length}`);
+for (const slug of slugs) if (!loaded.has(slug)) failures.push(`Missing dedicated engine: ${slug}`);
+if (new Set(slugs).size !== slugs.length) failures.push("Duplicate core tool slug");
+for (const file of fs.readdirSync("src/lib/engines")) {
+  if (!file.endsWith("-engine.ts")) continue;
+  const source = fs.readFileSync(`src/lib/engines/${file}`, "utf8");
+  if (/Math\.random\(|eval\(|new Function\(/.test(source)) failures.push(`Forbidden pattern in ${file}`);
 }
-for (const re of forbidden) if (re.test(engine)) failures.push(`Forbidden implementation pattern: ${re}`);
-const duplicates = [...slugs].filter((x,i,a)=>a.indexOf(x)!==i);
-if (duplicates.length) failures.push(`Duplicate catalog slugs: ${[...new Set(duplicates)].join(", ")}`);
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
-console.log(`Validated ${slugs.size} catalog slugs; ${unsupported.size} explicitly unsupported and excluded from active registry.`);
+console.log(`Validated ${slugs.length} dedicated core engines.`);

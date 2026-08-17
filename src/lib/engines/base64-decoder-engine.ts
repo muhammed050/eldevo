@@ -1,0 +1,2 @@
+import { requireInput } from "./shared";
+export const run = (input: string) => { requireInput(input); const value = input.replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/"); if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 === 1) throw new Error("Invalid Base64."); const binary = atob(value.padEnd(Math.ceil(value.length / 4) * 4, "=")); return new TextDecoder().decode(Uint8Array.from(binary, c => c.charCodeAt(0))); };

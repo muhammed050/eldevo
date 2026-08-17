@@ -1,0 +1,2 @@
+import { pretty, requireInput } from "./shared";
+export const run = (input: string) => { requireInput(input); const [pattern, ...tests] = input.split(/\n---TEST---\n/i); if (!pattern) throw new Error("Enter a regular expression."); let re: RegExp; try { re = new RegExp(pattern, "gm"); } catch (error) { throw new Error(error instanceof Error ? error.message : "Invalid regular expression."); } return pretty(tests.join("\n").split(/\r?\n/).map(value => ({ value, matches: [...value.matchAll(re)].map(m => ({ match: m[0], index: m.index })) }))); };
