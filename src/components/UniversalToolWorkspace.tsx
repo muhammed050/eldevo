@@ -24,7 +24,10 @@ const samples: Record<string, string> = {
 
 export function UniversalToolWorkspace({ slug }: { slug: string }) {
   if (slug === "image-editor") return <ImageToolWorkspace operation="editor" />;
+  return <TextToolWorkspace slug={slug} />;
+}
 
+function TextToolWorkspace({ slug }: { slug: string }) {
   const [input, setInput] = useState(samples[slug] ?? "");
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
