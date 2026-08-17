@@ -297,7 +297,7 @@ export async function imagesToPdf(
   const catalogId = add(ascii(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`));
 
   const header = ascii("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
-  const chunks: BlobPart[] = [header];
+  const rawChunks: Uint8Array[] = [header];
   const offsets = [0];
   let offset = header.length;
 
@@ -305,7 +305,7 @@ export async function imagesToPdf(
     const body = objects[i];
     const obj = join([ascii(`${i + 1} 0 obj\n`), body, ascii("\nendobj\n")]);
     offsets.push(offset);
-    chunks.push(obj);
+    rawChunks.push(obj);
     offset += obj.length;
   }
 
@@ -315,7 +315,8 @@ export async function imagesToPdf(
     xref += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
   }
   xref += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  chunks.push(ascii(xref));
+  rawChunks.push(ascii(xref));
 
-  return new Blob(chunks, { type: "application/pdf" });
+  const blobParts: BlobPart[] = rawChunks.map(chunk => chunk.buffer as ArrayBuffer);
+  return new Blob(blobParts, { type: "application/pdf" });
 }
