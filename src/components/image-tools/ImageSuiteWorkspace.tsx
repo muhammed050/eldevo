@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import { compressImage, imagesToPdf, removeBackground, socialResize, upscaleImage } from "@/lib/engines/image-suite-engine";
 
-type Format = "image/jpeg" | "image/png" | "image/webp" | "image/avif";
+// الحفاظ على التنسيقات المدعومة من قبل المحرك الأصلي لمنع أخطاء Build
+type EngineFormat = "image/jpeg" | "image/png" | "image/webp";
 type Tool = "background-remover" | "image-upscaler" | "image-compressor-pro" | "social-media-image-resizer" | "image-to-pdf";
 
 type Props = { tool: Tool };
 
-const accepts = "image/jpeg,image/png,image/webp,image/avif";
+const accepts = "image/jpeg,image/png,image/webp";
 const presets: Record<string, [number, number]> = {
   "instagram-square": [1080, 1080], 
   "instagram-portrait": [1080, 1350], 
@@ -35,7 +36,7 @@ export function ImageSuiteWorkspace({ tool }: Props) {
   
   // Settings States
   const [quality, setQuality] = useState(82);
-  const [format, setFormat] = useState<Format>("image/webp");
+  const [format, setFormat] = useState<EngineFormat>("image/webp");
   const [scale, setScale] = useState<2 | 4>(2);
   const [tolerance, setTolerance] = useState(42);
   const [maxWidth, setMaxWidth] = useState(0);
@@ -67,7 +68,7 @@ export function ImageSuiteWorkspace({ tool }: Props) {
 
   const choose = useCallback((incoming: File[]) => {
     const valid = incoming.filter((file) => accepts.split(",").includes(file.type) && file.size <= 25 * 1024 * 1024);
-    if (!valid.length) { setError("Please choose valid PNG, JPG, WebP, or AVIF files up to 25 MB each."); return; }
+    if (!valid.length) { setError("Please choose valid PNG, JPG, or WebP files up to 25 MB each."); return; }
     setError(""); 
     clearResult();
     const selectedFiles = tool === "image-to-pdf" ? valid.slice(0, 30) : [valid[0]];
@@ -94,7 +95,6 @@ export function ImageSuiteWorkspace({ tool }: Props) {
     choose(Array.from(event.dataTransfer.files ?? [])); 
   };
 
-  // Move Images in List (For PDF ordering)
   const moveFile = (index: number, direction: -1 | 1) => {
     const newFiles = [...files];
     const targetIndex = index + direction;
@@ -182,7 +182,6 @@ export function ImageSuiteWorkspace({ tool }: Props) {
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-950 p-4 sm:p-6">
-      {/* Upload Box */}
       <label 
         onDragEnter={(e) => { e.preventDefault(); setDragging(true); }} 
         onDragOver={(e) => e.preventDefault()} 
@@ -194,10 +193,9 @@ export function ImageSuiteWorkspace({ tool }: Props) {
         <span className="text-sm font-semibold text-slate-200">
           {dragging ? "Release to load image" : tool === "image-to-pdf" ? "Drop images here or click to upload" : "Drop an image here or click to upload"}
         </span>
-        <span className="mt-2 text-xs text-slate-500">PNG, JPG, WebP or AVIF · browser-only processing · paste supported</span>
+        <span className="mt-2 text-xs text-slate-500">PNG, JPG or WebP · browser-only processing · paste supported</span>
       </label>
 
-      {/* Selected File(s) Info & PDF Reordering */}
       {files.length > 0 && (
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -225,7 +223,6 @@ export function ImageSuiteWorkspace({ tool }: Props) {
         </div>
       )}
 
-      {/* Control Panel Options */}
       {files.length > 0 && (
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           {tool === "background-remover" && (
@@ -238,14 +235,14 @@ export function ImageSuiteWorkspace({ tool }: Props) {
           {tool === "image-upscaler" && (
             <>
               <Select label="Scale" value={String(scale)} setValue={(v) => setScale(Number(v) as 2 | 4)} options={[["2", "2×"], ["4", "4×"]]} />
-              <Select label="Output format" value={format} setValue={(v) => setFormat(v as Format)} options={[["image/webp", "WebP"], ["image/jpeg", "JPG"], ["image/png", "PNG"], ["image/avif", "AVIF"]]} />
+              <Select label="Output format" value={format} setValue={(v) => setFormat(v as EngineFormat)} options={[["image/webp", "WebP"], ["image/jpeg", "JPG"], ["image/png", "PNG"]]} />
               <Slider label="Quality" value={quality} setValue={setQuality} min={40} max={100} suffix="%" />
             </>
           )}
 
           {tool === "image-compressor-pro" && (
             <>
-              <Select label="Output format" value={format} setValue={(v) => setFormat(v as Format)} options={[["image/webp", "WebP"], ["image/jpeg", "JPG"], ["image/png", "PNG"], ["image/avif", "AVIF"]]} />
+              <Select label="Output format" value={format} setValue={(v) => setFormat(v as EngineFormat)} options={[["image/webp", "WebP"], ["image/jpeg", "JPG"], ["image/png", "PNG"]]} />
               <Slider label="Quality" value={quality} setValue={setQuality} min={10} max={100} suffix="%" />
               <Field label="Max width (optional)" value={maxWidth} setValue={setMaxWidth} min={0} max={12000} />
               <p className="text-xs text-slate-500 col-span-full">Lower pixel dimensions alongside quality optimization to maximize file savings.</p>
@@ -256,7 +253,7 @@ export function ImageSuiteWorkspace({ tool }: Props) {
             <>
               <Select label="Platform preset" value={preset} setValue={setPreset} options={Object.entries(presets).map(([k, [w, h]]) => [k, `${pretty(k)} — ${w}×${h}`])} />
               <Select label="Fit mode" value={fit} setValue={(v) => setFit(v as "cover" | "contain")} options={[["cover", "Cover / crop"], ["contain", "Contain / letterbox"]]} />
-              <Select label="Output format" value={format} setValue={(v) => setFormat(v as Format)} options={[["image/webp", "WebP"], ["image/jpeg", "JPG"], ["image/png", "PNG"]]} />
+              <Select label="Output format" value={format} setValue={(v) => setFormat(v as EngineFormat)} options={[["image/webp", "WebP"], ["image/jpeg", "JPG"], ["image/png", "PNG"]]} />
               <label className="block text-xs text-slate-400">
                 Background Canvas Color
                 <input type="color" value={background} onChange={(e) => setBackground(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-slate-700 bg-slate-900 p-1 cursor-pointer" />
@@ -277,7 +274,6 @@ export function ImageSuiteWorkspace({ tool }: Props) {
         </div>
       )}
 
-      {/* Action Buttons */}
       {files.length > 0 && (
         <div className="mt-5 flex flex-wrap gap-2">
           <button type="button" onClick={run} disabled={busy} className="rounded-lg bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
@@ -287,10 +283,8 @@ export function ImageSuiteWorkspace({ tool }: Props) {
         </div>
       )}
 
-      {/* Error Output */}
       {error && <div role="alert" className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
 
-      {/* Processing Result Preview & Statistics */}
       {resultUrl && (
         <div className="mt-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-500/10 pb-4">
@@ -313,15 +307,12 @@ export function ImageSuiteWorkspace({ tool }: Props) {
             <button type="button" onClick={download} className="rounded-lg bg-emerald-400 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-300">Download Result</button>
           </div>
 
-          {/* Before / After Interactive Visual Comparison */}
           {tool !== "image-to-pdf" && originalPreviewUrl && (
             <div className="mt-4">
               <p className="text-xs text-slate-400 mb-2 font-medium">Preview Comparison (Slide to compare Original vs Result):</p>
               <div className="relative h-[350px] w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-                {/* Processed Result Image */}
                 <img src={resultUrl} alt="Processed" className="absolute inset-0 h-full w-full object-contain" />
                 
-                {/* Original Image Mask Overlay */}
                 <div 
                   className="absolute inset-y-0 left-0 overflow-hidden border-r-2 border-cyan-400 bg-slate-950" 
                   style={{ width: `${compareSlider}%` }}
@@ -329,7 +320,6 @@ export function ImageSuiteWorkspace({ tool }: Props) {
                   <img src={originalPreviewUrl} alt="Original" className="h-full max-w-none object-contain" style={{ width: "100%", height: "100%" }} />
                 </div>
 
-                {/* Range Slider Control */}
                 <input 
                   type="range" 
                   min="0" 
@@ -347,10 +337,8 @@ export function ImageSuiteWorkspace({ tool }: Props) {
   );
 }
 
-// Utility Helper Functions
-function extension(format: Format) { 
+function extension(format: EngineFormat) { 
   if (format === "image/jpeg") return "jpg";
-  if (format === "image/avif") return "avif";
   return format.slice(6); 
 }
 
