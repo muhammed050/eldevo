@@ -32,6 +32,16 @@ export const coreTools: ToolMeta[] = [
   make("json-schema-validator", "JSON Schema Validator", "JSON", "json schema validator", "Validate common JSON type, required-property and property-type rules locally."),
   make("cron-generator", "Cron Expression Helper", "Generators", "cron generator", "Inspect and validate standard five-field cron expressions."),
   make("text-stats", "Text Statistics", "Text", "text statistics", "Measure words, characters, lines, sentences and reading time."),
+  {
+    ...make("image-editor", "Image Editor", "Images", "image editor", "Edit PNG, JPG and WebP images in your browser with crop, resize, rotation, flips, color adjustments, blur and local export."),
+    features: ["PNG, JPG and WebP support", "Crop, resize, rotate and flip", "Brightness, contrast, saturation, grayscale and blur", "Live preview and Reset", "Processed locally in your browser"],
+    usageSteps: ["Upload a PNG, JPG or WebP image.", "Adjust the editor controls and preview the changes.", "Choose PNG, JPG or WebP and download the edited image."],
+    codeExample: { input: "PNG / JPG / WebP image", output: "Edited image — processed locally" },
+    faqs: [
+      { q: "Is my image uploaded?", a: "No. Image processing happens locally in your browser." },
+      { q: "Which formats are supported?", a: "You can upload PNG, JPG or WebP images and export PNG, JPG or WebP." },
+    ],
+  },
 ];
 
 export const coreSlugs = new Set(coreTools.map(tool => tool.slug));
