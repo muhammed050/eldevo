@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ImageToolWorkspace } from "@/components/image-tools/ImageToolWorkspace";
+import { ImageSuiteWorkspace } from "@/components/image-tools/ImageSuiteWorkspace";
 import { loadToolEngine } from "@/lib/engines/loader";
 
 const samples: Record<string, string> = {
@@ -22,8 +23,17 @@ const samples: Record<string, string> = {
   "text-stats": "ElDevo makes useful browser tools.\nFast and private.",
 };
 
+const imageSuiteTools = new Set([
+  "background-remover",
+  "image-upscaler",
+  "image-compressor-pro",
+  "social-media-image-resizer",
+  "image-to-pdf",
+]);
+
 export function UniversalToolWorkspace({ slug }: { slug: string }) {
   if (slug === "image-editor") return <ImageToolWorkspace operation="editor" />;
+  if (imageSuiteTools.has(slug)) return <ImageSuiteWorkspace tool={slug as "background-remover" | "image-upscaler" | "image-compressor-pro" | "social-media-image-resizer" | "image-to-pdf"} />;
   return <TextToolWorkspace slug={slug} />;
 }
 
