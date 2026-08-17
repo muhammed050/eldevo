@@ -7,10 +7,11 @@ export function generateStaticParams() {
   return coreTools.map((tool) => ({ slug: tool.slug }));
 }
 
-export default function ConverterPage({
+export default async function ConverterPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  redirect(`/tools/${params.slug}/`);
+  const { slug } = await params;
+  redirect(`/tools/${slug}/`);
 }
