@@ -39,6 +39,8 @@ jobs:
           if-no-files-found: error
       - name: Unit and tool tests
         run: npm test
+      - name: Coverage
+        run: npm run test:coverage
       - name: Capture tool test diagnostics
         if: always()
         run: npm test > test-report.txt 2>&1 || true
