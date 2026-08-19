@@ -1,6 +1,13 @@
 import type { ToolMeta } from "./tools.config";
 
-const make = (slug: string, title: string, category: string, keyword: string, description: string): ToolMeta => ({
+export type CoreToolMeta = ToolMeta & {
+  engineId?: string;
+  inputMode?: "text" | "structured" | "image";
+  maxInputBytes?: number;
+  processing?: "local-only";
+};
+
+const make = (slug: string, title: string, category: string, keyword: string, description: string): CoreToolMeta => ({
   slug,
   title,
   h1: `${title} — Free Online Tool`,
@@ -14,9 +21,12 @@ const make = (slug: string, title: string, category: string, keyword: string, de
   codeExample: { input: "Example input", output: "Example output" },
   faqs: [{ q: "Is it free?", a: "Yes. This ElDevo tool is free to use." }, { q: "Is my input uploaded?", a: "No. The core engine runs in your browser." }],
   related: [],
+  engineId: slug,
+  inputMode: category === "JSON" || category === "Security" ? "structured" : "text",
+  processing: "local-only",
 });
 
-export const coreTools: ToolMeta[] = [
+export const coreTools: CoreToolMeta[] = [
   make("json-formatter", "JSON Formatter & Validator", "JSON", "json formatter", "Format and validate JSON locally with readable indentation and syntax errors."),
   make("jwt-decoder", "JWT Decoder", "Security", "jwt decoder", "Decode JWT headers and payload claims locally without pretending to verify signatures."),
   make("base64-encoder", "Base64 Encoder", "Encoding", "base64 encoder", "Encode UTF-8 text to Base64 in your browser."),
@@ -32,13 +42,51 @@ export const coreTools: ToolMeta[] = [
   make("json-schema-validator", "JSON Schema Validator", "JSON", "json schema validator", "Validate common JSON type, required-property and property-type rules locally."),
   make("cron-generator", "Cron Expression Helper", "Generators", "cron generator", "Inspect and validate standard five-field cron expressions."),
   make("text-stats", "Text Statistics", "Text", "text statistics", "Measure words, characters, lines, sentences and reading time."),
-  make("background-remover", "Background Remover", "Images", "background remover", "Remove simple solid-color image backgrounds locally and export transparent PNG."),
-  make("image-upscaler", "Image Upscaler", "Images", "image upscaler", "Upscale PNG, JPG and WebP images 2x or 4x locally with high-quality browser canvas scaling."),
-  make("image-compressor-pro", "Image Compressor Pro", "Images", "image compressor", "Compress JPG, PNG and WebP images locally with quality and optional maximum-width controls."),
-  make("social-media-image-resizer", "Social Media Image Resizer", "Images", "social media image resizer", "Resize images for Instagram, TikTok, YouTube, Facebook, X and LinkedIn using ready-made dimensions."),
-  make("image-to-pdf", "Image to PDF", "Images", "image to pdf", "Convert up to 30 PNG, JPG or WebP images into a multi-page PDF locally in your browser."),
+  {
+    ...make("background-remover", "Background Remover", "Images", "background remover", "Remove simple solid-color image backgrounds locally and export transparent PNG."),
+    engineId: "image-suite",
+    inputMode: "image",
+    maxInputBytes: 15_000_000,
+    features: ["Solid-color background removal", "Transparent PNG export", "Runs locally in your browser", "No image upload"],
+    faqs: [
+      { q: "Is this an AI background remover?", a: "No. This privacy-first version removes simple solid-color backgrounds locally; it is not a semantic AI segmentation model." },
+      { q: "Is my image uploaded?", a: "No. Processing happens in your browser." },
+    ],
+  },
+  {
+    ...make("image-upscaler", "Image Upscaler", "Images", "image upscaler", "Upscale PNG, JPG and WebP images 2x or 4x locally with high-quality browser canvas scaling."),
+    engineId: "image-suite",
+    inputMode: "image",
+    maxInputBytes: 15_000_000,
+    features: ["2x and 4x scaling", "PNG, JPG and WebP", "Local browser processing", "No image upload"],
+    faqs: [
+      { q: "Is this an AI upscaler?", a: "No. It uses high-quality browser canvas resampling rather than an AI super-resolution model." },
+      { q: "Is my image uploaded?", a: "No. Processing happens in your browser." },
+    ],
+  },
+  {
+    ...make("image-compressor-pro", "Image Compressor Pro", "Images", "image compressor", "Compress JPG, PNG and WebP images locally with quality and optional maximum-width controls."),
+    engineId: "image-suite",
+    inputMode: "image",
+    maxInputBytes: 15_000_000,
+  },
+  {
+    ...make("social-media-image-resizer", "Social Media Image Resizer", "Images", "social media image resizer", "Resize images for Instagram, TikTok, YouTube, Facebook, X and LinkedIn using ready-made dimensions."),
+    engineId: "image-suite",
+    inputMode: "image",
+    maxInputBytes: 15_000_000,
+  },
+  {
+    ...make("image-to-pdf", "Image to PDF", "Images", "image to pdf", "Convert up to 30 PNG, JPG or WebP images into a multi-page PDF locally in your browser."),
+    engineId: "image-suite",
+    inputMode: "image",
+    maxInputBytes: 60_000_000,
+  },
   {
     ...make("image-editor", "Image Editor", "Images", "image editor", "Edit PNG, JPG and WebP images in your browser with crop, resize, rotation, flips, color adjustments, blur and local export."),
+    engineId: "image-editor",
+    inputMode: "image",
+    maxInputBytes: 15_000_000,
     features: ["PNG, JPG and WebP support", "Crop, resize, rotate and flip", "Brightness, contrast, saturation, grayscale and blur", "Live preview and Reset", "Processed locally in your browser"],
     usageSteps: ["Upload a PNG, JPG or WebP image.", "Adjust the editor controls and preview the changes.", "Choose PNG, JPG or WebP and download the edited image."],
     codeExample: { input: "PNG / JPG / WebP image", output: "Edited image — processed locally" },
