@@ -1,4 +1,4 @@
-import type { ToolMeta } from "./tools.config";
+import { tools as seoTools, type ToolMeta } from "./tools.config";
 
 export type CoreToolMeta = ToolMeta & {
   engineId?: string;
@@ -7,24 +7,39 @@ export type CoreToolMeta = ToolMeta & {
   processing?: "local-only";
 };
 
-const make = (slug: string, title: string, category: string, keyword: string, description: string): CoreToolMeta => ({
-  slug,
-  title,
-  h1: `${title} — Free Online Tool`,
-  category,
-  primaryKeyword: keyword,
-  secondaryKeywords: [keyword, `${keyword} online`],
-  searchIntent: description,
-  description,
-  features: ["Runs locally in your browser", "No account required", "Copy or download results"],
-  usageSteps: ["Enter your input.", "Run the tool.", "Copy or download the result."],
-  codeExample: { input: "Example input", output: "Example output" },
-  faqs: [{ q: "Is it free?", a: "Yes. This ElDevo tool is free to use." }, { q: "Is my input uploaded?", a: "No. The core engine runs in your browser." }],
-  related: [],
-  engineId: slug,
-  inputMode: category === "JSON" || category === "Security" ? "structured" : "text",
-  processing: "local-only",
-});
+const seoAliases: Record<string, string> = {
+  "base64-encoder": "base64-encode-decode",
+  "base64-decoder": "base64-encode-decode",
+  "cron-generator": "cron-expression-generator",
+};
+
+const seoBySlug = new Map(seoTools.map(tool => [tool.slug, tool]));
+
+const make = (slug: string, title: string, category: string, keyword: string, description: string): CoreToolMeta => {
+  const seo = seoBySlug.get(slug) ?? seoBySlug.get(seoAliases[slug] ?? "");
+  return {
+    ...(seo ?? {}),
+    slug,
+    title: seo?.title ?? title,
+    h1: seo?.h1 ?? `${title} — Free Online Tool`,
+    category: seo?.category ?? category,
+    primaryKeyword: seo?.primaryKeyword ?? keyword,
+    secondaryKeywords: seo?.secondaryKeywords ?? [keyword, `${keyword} online`],
+    searchIntent: seo?.searchIntent ?? description,
+    description: seo?.description ?? description,
+    features: seo?.features ?? ["Runs locally in your browser", "No account required", "Copy or download results"],
+    usageSteps: seo?.usageSteps ?? ["Enter your input.", "Run the tool.", "Copy or download the result."],
+    codeExample: seo?.codeExample ?? { input: "Example input", output: "Example output" },
+    faqs: seo?.faqs ?? [
+      { q: "Is it free?", a: "Yes. This ElDevo tool is free to use." },
+      { q: "Is my input uploaded?", a: "No. The core engine runs in your browser." },
+    ],
+    related: seo?.related ?? [],
+    engineId: slug,
+    inputMode: category === "JSON" || category === "Security" ? "structured" : "text",
+    processing: "local-only",
+  };
+};
 
 export const coreTools: CoreToolMeta[] = [
   make("json-formatter", "JSON Formatter & Validator", "JSON", "json formatter", "Format and validate JSON locally with readable indentation and syntax errors."),
