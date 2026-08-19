@@ -1,18 +1,3 @@
 import type { Metadata } from "next";
-export const metadata: Metadata = {
-  title: "Contact ElDevo",
-  description: "Contact ElDevo for product feedback, bug reports and partnership questions.",
-  alternates: { canonical: "https://eldevo.com/contact/" },
-};
-export default function Page() {
-  return (
-    <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <h1 className="text-4xl font-bold">Contact</h1>
-      <p className="mt-5 leading-7 text-slate-400">
-        For product feedback, bug reports or partnership questions, contact the ElDevo team through
-        the email address published on the production site. Do not send secrets, API keys or private
-        tokens in support messages.
-      </p>
-    </article>
-  );
-}
+export const metadata: Metadata = { title: "Contact ElDevo", description: "Contact ElDevo for product feedback, bug reports, and tool requests.", alternates: { canonical: "https://eldevo.com/contact/" } };
+export default function Page() { return <article className="mx-auto max-w-3xl px-4 py-14 sm:px-6"><h1 className="text-4xl font-bold tracking-tight">Contact ElDevo</h1><p className="mt-6 text-lg leading-8 text-slate-400">Useful feedback helps us improve the tools and catch problems that automated tests cannot.</p><div className="mt-10 space-y-6"><section className="rounded-xl border p-6"><h2 className="text-xl font-semibold">Bug reports</h2><p className="mt-3 leading-7 text-slate-400">Include the tool name, browser, the smallest input that reproduces the issue, and the result you expected. Never include passwords, API keys, private tokens, or other secrets.</p></section><section className="rounded-xl border p-6"><h2 className="text-xl font-semibold">Tool requests</h2><p className="mt-3 leading-7 text-slate-400">Tell us the task you want to accomplish and why existing tools do not solve it. This helps us prioritize genuinely useful additions.</p></section></div></article>; }
