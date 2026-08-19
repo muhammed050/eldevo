@@ -34,17 +34,30 @@ export function getToolEnginePolicy(slug: string): ToolEnginePolicy {
   return definition.policy;
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("The tool took too long to finish. Try a smaller input.")), timeoutMs);
+    promise.then(value => { window.clearTimeout(timer); resolve(value); }, error => { window.clearTimeout(timer); reject(error); });
+  });
+}
+
+function formatByteLimit(bytes: number): string {
+  if (bytes >= 1_000_000) return `${Math.floor(bytes / 1_000_000)} MB`;
+  if (bytes >= 1_000) return `${Math.floor(bytes / 1_000)} KB`;
+  return `${bytes} bytes`;
+}
+
 export async function loadToolEngine(slug: string): Promise<ToolEngine> {
   const definition = coreLoaders[slug];
   if (!definition) throw new Error(`No dedicated engine is registered for ${slug}.`);
   const engine = (await definition.load()).run;
-  const { maxInputBytes } = definition.policy;
+  const { maxInputBytes, timeoutMs } = definition.policy;
 
   return async (input: string) => {
     if (utf8ByteLength(input) > maxInputBytes) {
-      throw new Error(`Input is too large. This tool accepts up to ${Math.floor(maxInputBytes / 1_000_000)} MB of text.`);
+      throw new Error(`Input is too large. This tool accepts up to ${formatByteLimit(maxInputBytes)}.`);
     }
-    return engine(input);
+    return withTimeout(Promise.resolve(engine(input)), timeoutMs);
   };
 }
 
