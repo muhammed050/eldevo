@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Analytics } from "@vercel/analytics/next";
 import { Header, Footer } from "@/components/Site";
 import { PwaRegister } from "@/components/PwaRegister";
 import "./globals.css";
@@ -73,6 +74,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <main className="min-h-[calc(100vh-7rem)]">{children}</main>
         <Footer />
         <PwaRegister />
+        <Analytics />
       </body>
     </html>
   );
