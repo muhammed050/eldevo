@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Header, Footer } from "@/components/Site";
 import { PwaRegister } from "@/components/PwaRegister";
 import "./globals.css";
@@ -80,6 +81,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <Footer />
         <PwaRegister />
         <GoogleAnalytics gaId="G-4RK8GRMCDP" />
+        <Analytics />
       </body>
     </html>
   );
