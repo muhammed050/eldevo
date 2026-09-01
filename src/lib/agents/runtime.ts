@@ -7,14 +7,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { withRetry, withTimeout } from "./reliability";
 import type { AgentDefinition, TaskInput, TaskResult } from "./types";
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export async function executeTask(input: TaskInput, agent: AgentDefinition, userId: string, options?: { taskId?: string; resume?: boolean; signal?: AbortSignal }): Promise<TaskResult> {
   const supabase = await createSupabaseServerClient();
   const taskId = options?.taskId ?? randomUUID();
   const budget = input.budgetCents ?? agent.budgetCents;
   let steps = planTask(taskId, input.goal, agent);
   const usage = { inputTokens: 0, outputTokens: 0, costCents: 0 };
+  let approvedResume = false;
 
   if (!options?.resume) {
     const { error } = await supabase.from("tasks").insert({ id: taskId, organization_id: input.organizationId, agent_id: agent.id, created_by: userId, goal: input.goal.trim(), status: "pending", metadata: input.metadata ?? {}, budget_cents: budget });
@@ -26,11 +25,13 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     const { data: dbSteps, error } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", taskId).order("step_index");
     if (error) throw new Error(`Could not load task steps: ${error.message}`);
     steps = (dbSteps ?? []).map((s) => ({ id: s.id, taskId: s.task_id, order: s.step_index, name: s.name, status: s.status, input: s.input, output: s.output, error: s.error }));
+    const { data: approvedApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "approved").order("decided_at", { ascending: false }).limit(1).maybeSingle();
+    approvedResume = Boolean(approvedApproval);
   }
 
   const { data: claimed, error: claimError } = await supabase.rpc("claim_task", { p_task_id: taskId, p_attempt: 1 });
   if (claimError || claimed !== true) {
-    const { data: current } = await supabase.from("tasks").select("status,output,error").eq("id", taskId).maybeSingle();
+    const { data: current } = await supabase.from("tasks").select("status,output,error").eq("id", taskId).eq("organization_id", input.organizationId).maybeSingle();
     if (current?.status === "completed") return { taskId, status: "completed", output: current.output, steps, usage };
     if (current?.status === "waiting_approval") return { taskId, status: "waiting_approval", steps, usage };
     throw new Error(`Task ${taskId} could not be claimed`);
@@ -41,7 +42,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   };
   const isCancelled = async () => {
     if (options?.signal?.aborted) return true;
-    const { data } = await supabase.from("tasks").select("cancel_requested").eq("id", taskId).maybeSingle();
+    const { data } = await supabase.from("tasks").select("cancel_requested").eq("id", taskId).eq("organization_id", input.organizationId).maybeSingle();
     return Boolean(data?.cancel_requested);
   };
 
@@ -60,10 +61,13 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
             const tool = getTool(toolName);
             if (!tool) throw new Error(`Unknown tool: ${toolName}`);
             const decision = authorizeTool({ ...agent, budgetCents: budget }, tool, usage.costCents);
-            if (decision.requiresApproval) {
+            if (decision.requiresApproval && !approvedResume) {
               await persistStep(3, "waiting_approval", { requiresApproval: true, reason: decision.reason, tool: tool.name });
-              await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
-              await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId);
+              const { data: existingApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "pending").maybeSingle();
+              if (!existingApproval) {
+                await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
+              }
+              await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId);
               return { __approval: true };
             }
             if (!decision.allowed) throw new Error(decision.reason ?? "Tool execution denied");
@@ -78,7 +82,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       };
 
       const result = await withRetry(
-        (attempt, signal) => withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal),
+        (_attempt, signal) => withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal),
         { maxAttempts: step.order === 3 ? 3 : 2, baseDelayMs: 500, signal: options?.signal }
       );
       if (typeof result === "object" && result && "__approval" in result) return { taskId, status: "waiting_approval", steps, usage };
@@ -88,12 +92,12 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     }
 
     if (await isCancelled()) throw new Error("Task cancelled");
-    await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, cost_cents: usage.costCents, completed_at: new Date().toISOString() }).eq("id", taskId).eq("status", "running");
+    await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, cost_cents: usage.costCents, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     return { taskId, status: "completed", output: steps.at(-1)?.output, steps, usage };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Task execution failed";
     const cancelled = message === "Task cancelled" || options?.signal?.aborted;
-    await supabase.from("tasks").update({ status: cancelled ? "cancelled" : "failed", error: message, completed_at: new Date().toISOString() }).eq("id", taskId).eq("status", "running");
+    await supabase.from("tasks").update({ status: cancelled ? "cancelled" : "failed", error: message, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     return { taskId, status: cancelled ? "cancelled" : "failed", steps, usage };
   }
 }
