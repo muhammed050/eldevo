@@ -24,8 +24,7 @@ export async function POST(request: Request) {
       if (existing) return NextResponse.json({ taskId: existing.id, status: existing.status, output: existing.output, error: existing.error, idempotentReplay: true });
     }
 
-    const result = await executeTask({ organizationId: membership.organization_id, goal: body.goal, agentId: agent.id, budgetCents: body.budgetCents, metadata: { ...(body.metadata ?? {}), idempotencyKey: body.idempotencyKey } }, agent, user.id);
-    if (body.idempotencyKey) await supabase.from("tasks").update({ idempotency_key: body.idempotencyKey }).eq("id", result.taskId);
+    const result = await executeTask({ organizationId: membership.organization_id, goal: body.goal, agentId: agent.id, budgetCents: body.budgetCents, idempotencyKey: body.idempotencyKey, metadata: body.metadata ?? {} }, agent, user.id);
     await supabase.from("audit_logs").insert({ organization_id: membership.organization_id, user_id: user.id, action: "task.execute", resource_type: "task", resource_id: result.taskId, metadata: { agent_id: agent.id, status: result.status, usage: result.usage } });
     return NextResponse.json(result, { status: result.status === "failed" ? 422 : 200 });
   } catch (error) {
