@@ -18,6 +18,7 @@ export interface TaskInput {
   goal: string;
   agentId: string;
   budgetCents?: number;
+  idempotencyKey?: string;
   metadata?: Record<string, unknown>;
 }
 
