@@ -2,35 +2,53 @@
 -- Keep browser clients read-only for execution artifacts; privileged runtime writes
 -- should go through trusted server-side code or narrowly-scoped RPCs.
 
-create policy if not exists "members can create task steps" on public.task_steps
-for insert to authenticated
-with check (
-  exists (
-    select 1
-    from public.tasks t
-    where t.id = task_id
-      and public.is_org_member(t.organization_id)
-  )
-);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'task_steps'
+      and policyname = 'members can create task steps'
+  ) then
+    create policy "members can create task steps" on public.task_steps
+    for insert to authenticated
+    with check (
+      exists (
+        select 1
+        from public.tasks t
+        where t.id = task_id
+          and public.is_org_member(t.organization_id)
+      )
+    );
+  end if;
 
-create policy if not exists "members can update task steps" on public.task_steps
-for update to authenticated
-using (
-  exists (
-    select 1
-    from public.tasks t
-    where t.id = task_id
-      and public.is_org_member(t.organization_id)
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.tasks t
-    where t.id = task_id
-      and public.is_org_member(t.organization_id)
-  )
-);
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'task_steps'
+      and policyname = 'members can update task steps'
+  ) then
+    create policy "members can update task steps" on public.task_steps
+    for update to authenticated
+    using (
+      exists (
+        select 1
+        from public.tasks t
+        where t.id = task_id
+          and public.is_org_member(t.organization_id)
+      )
+    )
+    with check (
+      exists (
+        select 1
+        from public.tasks t
+        where t.id = task_id
+          and public.is_org_member(t.organization_id)
+      )
+    );
+  end if;
+end;
+$$;
 
 -- Approval decisions are performed by the server route after role checks.
 -- Remove the broad member update policy so ordinary members cannot approve,
