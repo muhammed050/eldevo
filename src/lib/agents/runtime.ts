@@ -16,8 +16,16 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   let approvedResume = false;
 
   if (!options?.resume) {
-    const { error } = await supabase.from("tasks").insert({ id: taskId, organization_id: input.organizationId, agent_id: agent.id, created_by: userId, goal: input.goal.trim(), status: "pending", metadata: input.metadata ?? {}, budget_cents: budget });
-    if (error) throw new Error(`Could not create task: ${error.message}`);
+    const { error } = await supabase.from("tasks").insert({ id: taskId, organization_id: input.organizationId, agent_id: agent.id, created_by: userId, goal: input.goal.trim(), status: "pending", metadata: input.metadata ?? {}, budget_cents: budget, idempotency_key: input.idempotencyKey ?? null });
+    if (error) {
+      if (input.idempotencyKey && error.code === "23505") {
+        const { data: existing, error: lookupError } = await supabase.from("tasks").select("id,status,output,error").eq("organization_id", input.organizationId).eq("idempotency_key", input.idempotencyKey).maybeSingle();
+        if (lookupError || !existing) throw new Error(`Could not create task: ${error.message}`);
+        const { data: existingSteps } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", existing.id).order("step_index");
+        return { taskId: existing.id, status: existing.status, output: existing.output, steps: (existingSteps ?? []).map((s) => ({ id: s.id, taskId: s.task_id, order: s.step_index, name: s.name, status: s.status, input: s.input, output: s.output, error: s.error })), usage };
+      }
+      throw new Error(`Could not create task: ${error.message}`);
+    }
     const rows = steps.map((s) => ({ id: randomUUID(), task_id: taskId, step_index: s.order, name: s.name, status: "pending", input: s.input ?? null }));
     const { error: stepError } = await supabase.from("task_steps").insert(rows);
     if (stepError) throw new Error(`Could not create task steps: ${stepError.message}`);
@@ -67,7 +75,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
               if (!existingApproval) {
                 await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
               }
-              await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId);
+              await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
               return { __approval: true };
             }
             if (!decision.allowed) throw new Error(decision.reason ?? "Tool execution denied");
