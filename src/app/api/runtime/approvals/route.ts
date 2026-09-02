@@ -29,15 +29,6 @@ export async function PATCH(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     if (!decided) return NextResponse.json({ error: "Approval was already decided" }, { status: 409 });
 
-    if (decision === "rejected") {
-      await supabase
-        .from("tasks")
-        .update({ status: "cancelled", error: "Human approval rejected" })
-        .eq("id", approval.task_id)
-        .eq("organization_id", approval.organization_id)
-        .eq("status", "waiting_approval");
-    }
-
     await supabase.from("audit_logs").insert({
       organization_id: approval.organization_id,
       user_id: user.id,
@@ -47,49 +38,67 @@ export async function PATCH(request: Request) {
       metadata: { task_id: approval.task_id },
     });
 
-    if (decision === "approved") {
-      const { data: task } = await supabase
+    if (decision === "rejected") {
+      await supabase
         .from("tasks")
-        .select("id,organization_id,agent_id,goal,budget_cents,metadata,status")
+        .update({ status: "cancelled", error: "Human approval rejected" })
         .eq("id", approval.task_id)
         .eq("organization_id", approval.organization_id)
-        .eq("status", "waiting_approval")
-        .maybeSingle();
-      if (!task) return NextResponse.json({ ok: true, approvalId, decision, resumed: false });
-
-      // Make the blocked step runnable again. The task/approval guards above make
-      // this transition safe against duplicate approval submissions.
-      const { error: stepError } = await supabase
-        .from("task_steps")
-        .update({ status: "pending", error: null })
-        .eq("task_id", task.id)
         .eq("status", "waiting_approval");
-      if (stepError) return NextResponse.json({ error: stepError.message }, { status: 400 });
-
-      const { data: agent } = await supabase
-        .from("agents")
-        .select("id,name,description,instructions,model,tools,permissions,budget_cents,status")
-        .eq("id", task.agent_id)
-        .eq("organization_id", task.organization_id)
-        .maybeSingle();
-      if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 409 });
-
-      const result = await executeTask(
-        {
-          organizationId: task.organization_id,
-          goal: task.goal,
-          agentId: task.agent_id,
-          budgetCents: task.budget_cents,
-          metadata: task.metadata ?? {},
-        },
-        agent,
-        user.id,
-        { taskId: task.id, resume: true },
-      );
-      return NextResponse.json({ ok: true, approvalId, decision, resumed: result.status !== "waiting_approval", result });
+      return NextResponse.json({ ok: true, approvalId, decision });
     }
 
-    return NextResponse.json({ ok: true, approvalId, decision });
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("id,organization_id,agent_id,goal,budget_cents,metadata,status")
+      .eq("id", approval.task_id)
+      .eq("organization_id", approval.organization_id)
+      .eq("status", "waiting_approval")
+      .maybeSingle();
+    if (!task) return NextResponse.json({ ok: true, approvalId, decision, resumed: false });
+
+    const { error: stepError } = await supabase
+      .from("task_steps")
+      .update({ status: "pending", error: null })
+      .eq("task_id", task.id)
+      .eq("status", "waiting_approval");
+    if (stepError) return NextResponse.json({ error: stepError.message }, { status: 400 });
+
+    const { data: transitionedTask, error: taskError } = await supabase
+      .from("tasks")
+      .update({ status: "pending", error: null })
+      .eq("id", task.id)
+      .eq("organization_id", approval.organization_id)
+      .eq("status", "waiting_approval")
+      .select("id")
+      .maybeSingle();
+    if (taskError) return NextResponse.json({ error: taskError.message }, { status: 400 });
+    if (!transitionedTask) return NextResponse.json({ ok: true, approvalId, decision, resumed: false });
+
+    const { data: agent } = await supabase
+      .from("agents")
+      .select("id,name,description,instructions,model,tools,permissions,budget_cents,status")
+      .eq("id", task.agent_id)
+      .eq("organization_id", task.organization_id)
+      .maybeSingle();
+    if (!agent) {
+      await supabase.from("tasks").update({ status: "failed", error: "Agent not found" }).eq("id", task.id).eq("organization_id", task.organization_id).eq("status", "pending");
+      return NextResponse.json({ error: "Agent not found" }, { status: 409 });
+    }
+
+    const result = await executeTask(
+      {
+        organizationId: task.organization_id,
+        goal: task.goal,
+        agentId: task.agent_id,
+        budgetCents: task.budget_cents,
+        metadata: task.metadata ?? {},
+      },
+      agent,
+      user.id,
+      { taskId: task.id, resume: true },
+    );
+    return NextResponse.json({ ok: true, approvalId, decision, resumed: result.status !== "waiting_approval", result });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid request" }, { status: 400 });
   }
