@@ -23,10 +23,12 @@ export async function PATCH(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     if (!decided) return NextResponse.json({ error: "Approval was already decided" }, { status: 409 });
 
-    await supabase.from("audit_logs").insert({ organization_id: approval.organization_id, user_id: user.id, action: `approval.${decision}`, resource_type: "approval", resource_id: approvalId, metadata: { task_id: approval.task_id } });
+    const { error: auditError } = await supabase.from("audit_logs").insert({ organization_id: approval.organization_id, user_id: user.id, action: `approval.${decision}`, resource_type: "approval", resource_id: approvalId, metadata: { task_id: approval.task_id } });
+    if (auditError) return NextResponse.json({ error: auditError.message }, { status: 400 });
 
     if (decision === "rejected") {
-      await supabase.from("tasks").update({ status: "cancelled", error: "Human approval rejected" }).eq("id", approval.task_id).eq("organization_id", approval.organization_id).eq("status", "waiting_approval");
+      const { error: cancelError } = await supabase.from("tasks").update({ status: "cancelled", error: "Human approval rejected" }).eq("id", approval.task_id).eq("organization_id", approval.organization_id).eq("status", "waiting_approval");
+      if (cancelError) return NextResponse.json({ error: cancelError.message }, { status: 400 });
       return NextResponse.json({ ok: true, approvalId, decision });
     }
 
@@ -34,11 +36,8 @@ export async function PATCH(request: Request) {
     if (resumeError) return NextResponse.json({ error: resumeError.message }, { status: 400 });
     if (resumed !== true) return NextResponse.json({ ok: true, approvalId, decision, resumed: false });
 
-    const { error: stepError } = await supabase.from("task_steps").update({ status: "pending", error: null }).eq("task_id", approval.task_id).eq("status", "waiting_approval");
-    if (stepError) return NextResponse.json({ error: stepError.message }, { status: 400 });
-
-    const { data: task } = await supabase.from("tasks").select("id,organization_id,agent_id,goal,budget_cents,metadata").eq("id", approval.task_id).eq("organization_id", approval.organization_id).maybeSingle();
-    if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    const { data: task } = await supabase.from("tasks").select("id,organization_id,agent_id,goal,budget_cents,metadata").eq("id", approval.task_id).eq("organization_id", approval.organization_id).eq("status", "pending").maybeSingle();
+    if (!task) return NextResponse.json({ error: "Task not found or not resumable" }, { status: 409 });
     const { data: agent } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
     if (!agent) {
       await supabase.from("tasks").update({ status: "failed", error: "Agent not found" }).eq("id", task.id).eq("organization_id", task.organization_id).eq("status", "pending");
