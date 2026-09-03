@@ -46,7 +46,8 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   }
 
   const persistStep = async (index: number, status: string, output?: unknown, error?: string) => {
-    await supabase.from("task_steps").update({ status, output: output ?? null, error: error ?? null, started_at: status === "running" ? new Date().toISOString() : undefined, completed_at: ["completed", "failed"].includes(status) ? new Date().toISOString() : null }).eq("task_id", taskId).eq("step_index", index);
+    const { error: persistError } = await supabase.from("task_steps").update({ status, output: output ?? null, error: error ?? null, started_at: status === "running" ? new Date().toISOString() : undefined, completed_at: ["completed", "failed"].includes(status) ? new Date().toISOString() : null }).eq("task_id", taskId).eq("step_index", index);
+    if (persistError) throw new Error(`Could not persist step ${index}: ${persistError.message}`);
   };
   const isCancelled = async () => {
     if (options?.signal?.aborted) return true;
@@ -58,7 +59,20 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     for (const step of steps) {
       if (step.status === "completed") continue;
       if (await isCancelled()) throw new Error("Task cancelled");
-      await persistStep(step.order, "running");
+
+      const { data: stepClaimed, error: stepClaimError } = await supabase.rpc("claim_task_step", { p_task_id: taskId, p_step_index: step.order });
+      if (stepClaimError) throw new Error(`Could not claim step ${step.order}: ${stepClaimError.message}`);
+      if (stepClaimed !== true) {
+        const { data: currentStep } = await supabase.from("task_steps").select("status,output,error").eq("task_id", taskId).eq("step_index", step.order).maybeSingle();
+        if (currentStep?.status === "completed") {
+          step.status = "completed";
+          step.output = currentStep.output;
+          step.error = currentStep.error;
+          continue;
+        }
+        if (currentStep?.status === "waiting_approval") return { taskId, status: "waiting_approval", steps, usage };
+        throw new Error(`Step ${step.order} is already being executed`);
+      }
 
       const executeStep = async () => {
         if (step.order === 1) return { understood: true, goal: input.goal };
