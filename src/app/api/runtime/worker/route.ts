@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ claimed: true, queueId: queueItem.id, status: "failed", error: "Agent not found" }, { status: 404 });
     }
 
-    const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent as AgentDefinition, task.created_by, { taskId: task.id, resume: task.status === "waiting_approval" });
+    const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent as AgentDefinition, task.created_by, { taskId: task.id, resume: true });
     const terminal = ["completed", "failed", "cancelled"].includes(result.status);
     await finishTaskQueueItem(queueItem.id, terminal, terminal ? undefined : `Task returned ${result.status}`);
     return NextResponse.json({ claimed: true, queueId: queueItem.id, result });
