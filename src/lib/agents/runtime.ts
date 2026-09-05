@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { withRetry, withTimeout } from "./reliability";
 import type { AgentDefinition, TaskInput, TaskResult } from "./types";
 
-export async function executeTask(input: TaskInput, agent: AgentDefinition, userId: string, options?: { taskId?: string; resume?: boolean; signal?: AbortSignal }): Promise<TaskResult> {
+export async function executeTask(input: TaskInput, agent: AgentDefinition, userId: string, options?: { taskId?: string; resume?: boolean; enqueue?: boolean; signal?: AbortSignal }): Promise<TaskResult> {
   const supabase = await createSupabaseServerClient();
   const taskId = options?.taskId ?? randomUUID();
   const budget = input.budgetCents ?? agent.budgetCents;
@@ -29,8 +29,13 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     const rows = steps.map((s) => ({ id: randomUUID(), task_id: taskId, step_index: s.order, name: s.name, status: "pending", input: s.input ?? null }));
     const { error: stepError } = await supabase.from("task_steps").insert(rows);
     if (stepError) throw new Error(`Could not create task steps: ${stepError.message}`);
+    if (options?.enqueue) {
+      const { error: queueError } = await supabase.rpc("enqueue_task", { p_task_id: taskId, p_organization_id: input.organizationId });
+      if (queueError) throw new Error(`Could not enqueue task: ${queueError.message}`);
+      return { taskId, status: "pending", steps, usage };
+    }
   } else {
-    const { data: dbSteps, error } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", taskId).order("step_index");
+    const { data: dbSteps, error } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", taskId).eq("status", "neq.cancelled").order("step_index");
     if (error) throw new Error(`Could not load task steps: ${error.message}`);
     steps = (dbSteps ?? []).map((s) => ({ id: s.id, taskId: s.task_id, order: s.step_index, name: s.name, status: s.status, input: s.input, output: s.output, error: s.error }));
     const { data: approvedApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "approved").order("decided_at", { ascending: false }).limit(1).maybeSingle();
@@ -64,12 +69,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       if (stepClaimError) throw new Error(`Could not claim step ${step.order}: ${stepClaimError.message}`);
       if (stepClaimed !== true) {
         const { data: currentStep } = await supabase.from("task_steps").select("status,output,error").eq("task_id", taskId).eq("step_index", step.order).maybeSingle();
-        if (currentStep?.status === "completed") {
-          step.status = "completed";
-          step.output = currentStep.output;
-          step.error = currentStep.error;
-          continue;
-        }
+        if (currentStep?.status === "completed") { step.status = "completed"; step.output = currentStep.output; step.error = currentStep.error; continue; }
         if (currentStep?.status === "waiting_approval") return { taskId, status: "waiting_approval", steps, usage };
         throw new Error(`Step ${step.order} is already being executed`);
       }
@@ -86,9 +86,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
             if (decision.requiresApproval && !approvedResume) {
               await persistStep(3, "waiting_approval", { requiresApproval: true, reason: decision.reason, tool: tool.name });
               const { data: existingApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "pending").maybeSingle();
-              if (!existingApproval) {
-                await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
-              }
+              if (!existingApproval) await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
               await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
               return { __approval: true };
             }
@@ -103,10 +101,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
         return { validated: true };
       };
 
-      const result = await withRetry(
-        (_attempt, signal) => withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal),
-        { maxAttempts: step.order === 3 ? 3 : 2, baseDelayMs: 500, signal: options?.signal }
-      );
+      const result = await withRetry((_attempt, signal) => withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal), { maxAttempts: step.order === 3 ? 3 : 2, baseDelayMs: 500, signal: options?.signal });
       if (typeof result === "object" && result && "__approval" in result) return { taskId, status: "waiting_approval", steps, usage };
       step.status = "completed";
       step.output = result;
