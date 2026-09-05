@@ -113,13 +113,13 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Create approval records from risky steps.
 - [x] Approval statuses: pending / approved / rejected / expired.
 - [x] Approval decision permissions.
-- [ ] Resume a paused task after approval.
-- [ ] Atomic state transitions and idempotency keys.
-- [ ] Retry policy with exponential backoff.
+- [x] Resume a paused task after approval.
+- [x] Atomic state transitions and idempotency keys.
+- [x] Retry policy with exponential backoff.
 - [ ] Timeout and cancellation handling.
 - [ ] Concurrent step execution where safe.
-- [ ] Durable background worker/queue.
-- [ ] Dead-letter handling.
+- [x] Durable background worker/queue.
+- [x] Dead-letter handling.
 - [ ] Per-step tracing.
 - [ ] Complete runtime error taxonomy.
 - [ ] Production-grade usage/cost accounting.
@@ -520,11 +520,13 @@ All external actions should be observable and auditable.
 
 # Current Runtime Status
 
-The repository already contains the initial Agent runtime layer with planner, policy, runtime, tools and model abstractions. The Agent type currently includes model, tools, permissions, budget and lifecycle state; the Task type includes execution state and usage information. fileciteturn34file0
+The repository already contains the initial Agent runtime layer with planner, policy, runtime, tools and model abstractions. The Agent type currently includes model, tools, permissions, budget and lifecycle state; the Task type includes execution state and usage information.
 
-The planner currently creates the initial execution stages, while the policy layer checks permissions, budget and high-risk approval requirements. fileciteturn35file0turn36file0
+The planner currently creates the initial execution stages, while the policy layer checks permissions, budget and high-risk approval requirements.
 
-The initial tool system supports risk levels and registration, with an `echo` development tool available for runtime verification. fileciteturn37file0
+The initial tool system supports risk levels and registration, with an `echo` development tool available for runtime verification.
+
+The Production Execution Engine now also supports approval-driven task resumption, atomic state transitions/idempotency, durable task queueing, retry backoff, dead-letter handling, and a protected worker execution endpoint.
 
 ---
 
