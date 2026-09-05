@@ -35,7 +35,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       return { taskId, status: "pending", steps, usage };
     }
   } else {
-    const { data: dbSteps, error } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", taskId).eq("status", "neq.cancelled").order("step_index");
+    const { data: dbSteps, error } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", taskId).order("step_index");
     if (error) throw new Error(`Could not load task steps: ${error.message}`);
     steps = (dbSteps ?? []).map((s) => ({ id: s.id, taskId: s.task_id, order: s.step_index, name: s.name, status: s.status, input: s.input, output: s.output, error: s.error }));
     const { data: approvedApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "approved").order("decided_at", { ascending: false }).limit(1).maybeSingle();
@@ -64,7 +64,6 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     for (const step of steps) {
       if (step.status === "completed") continue;
       if (await isCancelled()) throw new Error("Task cancelled");
-
       const { data: stepClaimed, error: stepClaimError } = await supabase.rpc("claim_task_step", { p_task_id: taskId, p_step_index: step.order });
       if (stepClaimError) throw new Error(`Could not claim step ${step.order}: ${stepClaimError.message}`);
       if (stepClaimed !== true) {
@@ -73,7 +72,6 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
         if (currentStep?.status === "waiting_approval") return { taskId, status: "waiting_approval", steps, usage };
         throw new Error(`Step ${step.order} is already being executed`);
       }
-
       const executeStep = async () => {
         if (step.order === 1) return { understood: true, goal: input.goal };
         if (step.order === 2) return { tools: agent.tools, model: agent.model };
@@ -100,14 +98,12 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
         }
         return { validated: true };
       };
-
       const result = await withRetry((_attempt, signal) => withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal), { maxAttempts: step.order === 3 ? 3 : 2, baseDelayMs: 500, signal: options?.signal });
       if (typeof result === "object" && result && "__approval" in result) return { taskId, status: "waiting_approval", steps, usage };
       step.status = "completed";
       step.output = result;
       await persistStep(step.order, "completed", result);
     }
-
     if (await isCancelled()) throw new Error("Task cancelled");
     await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, cost_cents: usage.costCents, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     return { taskId, status: "completed", output: steps.at(-1)?.output, steps, usage };
