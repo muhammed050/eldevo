@@ -14,6 +14,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   let steps = planTask(taskId, input.goal, agent);
   const usage = { inputTokens: 0, outputTokens: 0, costCents: 0 };
   let approvedResume = false;
+  let activeStepOrder: number | undefined;
 
   if (!options?.resume) {
     const { error } = await supabase.from("tasks").insert({ id: taskId, organization_id: input.organizationId, agent_id: agent.id, created_by: userId, goal: input.goal.trim(), status: "pending", metadata: input.metadata ?? {}, budget_cents: budget, idempotency_key: input.idempotencyKey ?? null });
@@ -51,7 +52,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   }
 
   const persistStep = async (index: number, status: string, output?: unknown, error?: string) => {
-    const { error: persistError } = await supabase.from("task_steps").update({ status, output: output ?? null, error: error ?? null, started_at: status === "running" ? new Date().toISOString() : undefined, completed_at: ["completed", "failed"].includes(status) ? new Date().toISOString() : null }).eq("task_id", taskId).eq("step_index", index);
+    const { error: persistError } = await supabase.from("task_steps").update({ status, output: output ?? null, error: error ?? null, started_at: status === "running" ? new Date().toISOString() : undefined, completed_at: ["completed", "failed", "cancelled"].includes(status) ? new Date().toISOString() : null }).eq("task_id", taskId).eq("step_index", index);
     if (persistError) throw new Error(`Could not persist step ${index}: ${persistError.message}`);
   };
   const isCancelled = async () => {
@@ -64,6 +65,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     for (const step of steps) {
       if (step.status === "completed") continue;
       if (await isCancelled()) throw new Error("Task cancelled");
+      activeStepOrder = step.order;
       const { data: stepClaimed, error: stepClaimError } = await supabase.rpc("claim_task_step", { p_task_id: taskId, p_step_index: step.order });
       if (stepClaimError) throw new Error(`Could not claim step ${step.order}: ${stepClaimError.message}`);
       if (stepClaimed !== true) {
@@ -103,13 +105,17 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       step.status = "completed";
       step.output = result;
       await persistStep(step.order, "completed", result);
+      activeStepOrder = undefined;
     }
     if (await isCancelled()) throw new Error("Task cancelled");
     await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, cost_cents: usage.costCents, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     return { taskId, status: "completed", output: steps.at(-1)?.output, steps, usage };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Task execution failed";
-    const cancelled = message === "Task cancelled" || options?.signal?.aborted;
+    const cancelled = message === "Task cancelled" || message === "Operation cancelled" || options?.signal?.aborted;
+    if (activeStepOrder !== undefined) {
+      await persistStep(activeStepOrder, cancelled ? "cancelled" : "failed", undefined, message);
+    }
     await supabase.from("tasks").update({ status: cancelled ? "cancelled" : "failed", error: message, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     return { taskId, status: cancelled ? "cancelled" : "failed", steps, usage };
   }
