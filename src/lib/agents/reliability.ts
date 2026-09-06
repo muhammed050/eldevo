@@ -4,7 +4,8 @@ export function sleep(ms: number, signal?: AbortSignal) {
   if (signal?.aborted) return Promise.reject(new Error("Operation cancelled"));
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => { clearTimeout(timer); reject(new Error("Operation cancelled")); }, { once: true });
+    const onAbort = () => { clearTimeout(timer); reject(new Error("Operation cancelled")); };
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -23,7 +24,7 @@ export async function withRetry<T>(operation: (attempt: number, signal: AbortSig
     try { return await operation(attempt, controller.signal); }
     catch (error) {
       lastError = error;
-      if (attempt === maxAttempts) break;
+      if (controller.signal.aborted || attempt === maxAttempts) break;
       await sleep(Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1)), controller.signal);
     }
   }
@@ -32,17 +33,24 @@ export async function withRetry<T>(operation: (attempt: number, signal: AbortSig
 
 export async function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number, parentSignal?: AbortSignal) {
   const controller = new AbortController();
+  let timeoutTriggered = false;
+  let settled = false;
   const onParentAbort = () => controller.abort();
+  const onTimeout = () => { timeoutTriggered = true; controller.abort(); };
   parentSignal?.addEventListener("abort", onParentAbort, { once: true });
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(onTimeout, Math.max(1, timeoutMs));
   try {
-    return await Promise.race([
-      operation(controller.signal),
-      new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(new Error(parentSignal?.aborted ? "Operation cancelled" : "Operation timed out")), { once: true })),
-    ]);
+    if (parentSignal?.aborted) throw new Error("Operation cancelled");
+    return await new Promise<T>((resolve, reject) => {
+      const onAbort = () => reject(new Error(parentSignal?.aborted ? "Operation cancelled" : timeoutTriggered ? "Operation timed out" : "Operation cancelled"));
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+      operation(controller.signal).then((value) => { settled = true; resolve(value); }, (error) => { settled = true; reject(error); });
+    });
   } finally {
+    settled = true;
     clearTimeout(timeout);
     parentSignal?.removeEventListener("abort", onParentAbort);
+    if (!controller.signal.aborted && !settled) controller.abort();
   }
 }
 
