@@ -14,47 +14,77 @@ export async function withRetry<T>(operation: (attempt: number, signal: AbortSig
   const baseDelayMs = options.baseDelayMs ?? 500;
   const maxDelayMs = options.maxDelayMs ?? 10_000;
   const controller = new AbortController();
+  const onParentAbort = () => controller.abort();
   if (options.signal) {
     if (options.signal.aborted) controller.abort();
-    else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    else options.signal.addEventListener("abort", onParentAbort, { once: true });
   }
   let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (controller.signal.aborted) throw new Error("Operation cancelled");
-    try { return await operation(attempt, controller.signal); }
-    catch (error) {
-      lastError = error;
-      if (controller.signal.aborted || attempt === maxAttempts) break;
-      await sleep(Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1)), controller.signal);
+  try {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (controller.signal.aborted) throw new Error("Operation cancelled");
+      try { return await operation(attempt, controller.signal); }
+      catch (error) {
+        lastError = error;
+        if (controller.signal.aborted || attempt === maxAttempts) break;
+        await sleep(Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1)), controller.signal);
+      }
     }
+    throw lastError instanceof Error ? lastError : new Error("Operation failed");
+  } finally {
+    options.signal?.removeEventListener("abort", onParentAbort);
+    controller.abort();
   }
-  throw lastError instanceof Error ? lastError : new Error("Operation failed");
 }
 
 export async function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number, parentSignal?: AbortSignal) {
   const controller = new AbortController();
   let timeoutTriggered = false;
   let settled = false;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
   const onParentAbort = () => controller.abort();
   const onTimeout = () => { timeoutTriggered = true; controller.abort(); };
+  const abortError = () => new Error(parentSignal?.aborted ? "Operation cancelled" : timeoutTriggered ? "Operation timed out" : "Operation cancelled");
+
+  if (parentSignal?.aborted) throw new Error("Operation cancelled");
   parentSignal?.addEventListener("abort", onParentAbort, { once: true });
-  const timeout = setTimeout(onTimeout, Math.max(1, timeoutMs));
+  timeout = setTimeout(onTimeout, Math.max(1, timeoutMs));
+
   try {
-    if (parentSignal?.aborted) throw new Error("Operation cancelled");
     return await new Promise<T>((resolve, reject) => {
-      const onAbort = () => reject(new Error(parentSignal?.aborted ? "Operation cancelled" : timeoutTriggered ? "Operation timed out" : "Operation cancelled"));
+      const onAbort = () => {
+        if (!settled) {
+          settled = true;
+          reject(abortError());
+        }
+      };
       controller.signal.addEventListener("abort", onAbort, { once: true });
-      operation(controller.signal).then((value) => { settled = true; resolve(value); }, (error) => { settled = true; reject(error); });
+      operation(controller.signal).then(
+        (value) => {
+          if (!settled) {
+            settled = true;
+            resolve(value);
+          }
+        },
+        (error) => {
+          if (!settled) {
+            settled = true;
+            reject(error);
+          }
+        },
+      );
     });
   } finally {
-    settled = true;
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
     parentSignal?.removeEventListener("abort", onParentAbort);
-    if (!controller.signal.aborted && !settled) controller.abort();
+    if (!settled) settled = true;
+    controller.abort();
   }
 }
 
 export async function mapConcurrent<T, R>(items: T[], worker: (item: T, index: number) => Promise<R>, concurrency = 3) {
+  if (items.length === 0) return [] as R[];
   const results = new Array<R>(items.length);
   let cursor = 0;
   async function run() {
