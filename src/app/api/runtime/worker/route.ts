@@ -12,10 +12,12 @@ export async function POST(request: Request) {
   }
 
   const workerId = `worker:${randomUUID()}`;
+  let claimedQueueId: string | null = null;
 
   try {
     const queueItem = await claimNextTask(workerId);
     if (!queueItem) return NextResponse.json({ claimed: false, message: "No queued tasks" });
+    claimedQueueId = queueItem.id;
 
     const supabase = createSupabaseServiceClient();
     const { data: task, error: taskError } = await supabase.from("tasks").select("id,organization_id,agent_id,goal,budget_cents,metadata,created_by,status").eq("id", queueItem.task_id).eq("organization_id", queueItem.organization_id).maybeSingle();
@@ -35,6 +37,14 @@ export async function POST(request: Request) {
     await finishTaskQueueItem(queueItem.id, workerId, terminal, terminal ? undefined : `Task returned ${result.status}`);
     return NextResponse.json({ claimed: true, queueId: queueItem.id, result });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Worker execution failed" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Worker execution failed";
+    if (claimedQueueId) {
+      try {
+        await finishTaskQueueItem(claimedQueueId, workerId, false, message);
+      } catch {
+        // Preserve the original worker error; the queue item can be recovered by lock expiry.
+      }
+    }
+    return NextResponse.json({ error: message, queueId: claimedQueueId }, { status: 500 });
   }
 }
