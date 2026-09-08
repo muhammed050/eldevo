@@ -116,11 +116,11 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Resume a paused task after approval.
 - [x] Atomic state transitions and idempotency keys.
 - [x] Retry policy with exponential backoff.
-- [ ] Timeout and cancellation handling.
+- [x] Timeout and cancellation handling.
 - [ ] Concurrent step execution where safe.
 - [x] Durable background worker/queue.
 - [x] Dead-letter handling.
-- [ ] Per-step tracing.
+- [x] Per-step tracing.
 - [ ] Complete runtime error taxonomy.
 - [ ] Production-grade usage/cost accounting.
 
@@ -526,7 +526,7 @@ The planner currently creates the initial execution stages, while the policy lay
 
 The initial tool system supports risk levels and registration, with an `echo` development tool available for runtime verification.
 
-The Production Execution Engine now also supports approval-driven task resumption, atomic state transitions/idempotency, durable task queueing, retry backoff, dead-letter handling, and a protected worker execution endpoint.
+The Production Execution Engine now also supports approval-driven task resumption, atomic state transitions/idempotency, timeout and cancellation handling, durable task queueing, retry backoff, dead-letter handling, per-step tracing, and a protected worker execution endpoint.
 
 ---
 
