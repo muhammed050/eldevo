@@ -15,6 +15,18 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   const usage = { inputTokens: 0, outputTokens: 0, costCents: 0 };
   let approvedResume = false;
   let activeStepOrder: number | undefined;
+  let activeAttempt = 1;
+
+  const trace = async (stepIndex: number, eventType: string, metadata: Record<string, unknown> = {}) => {
+    const { error } = await supabase.rpc("record_task_step_trace", {
+      p_task_id: taskId,
+      p_step_index: stepIndex,
+      p_event_type: eventType,
+      p_attempt: activeAttempt,
+      p_metadata: metadata,
+    });
+    if (error) throw new Error(`Could not persist step trace: ${error.message}`);
+  };
 
   if (!options?.resume) {
     const { error } = await supabase.from("tasks").insert({ id: taskId, organization_id: input.organizationId, agent_id: agent.id, created_by: userId, goal: input.goal.trim(), status: "pending", metadata: input.metadata ?? {}, budget_cents: budget, idempotency_key: input.idempotencyKey ?? null });
@@ -66,6 +78,8 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       if (step.status === "completed") continue;
       if (await isCancelled()) throw new Error("Task cancelled");
       activeStepOrder = step.order;
+      activeAttempt = 1;
+      await trace(step.order, "started", { name: step.name });
       const { data: stepClaimed, error: stepClaimError } = await supabase.rpc("claim_task_step", { p_task_id: taskId, p_step_index: step.order });
       if (stepClaimError) throw new Error(`Could not claim step ${step.order}: ${stepClaimError.message}`);
       if (stepClaimed !== true) {
@@ -85,6 +99,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
             const decision = authorizeTool({ ...agent, budgetCents: budget }, tool, usage.costCents);
             if (decision.requiresApproval && !approvedResume) {
               await persistStep(3, "waiting_approval", { requiresApproval: true, reason: decision.reason, tool: tool.name });
+              await trace(3, "waiting_approval", { reason: decision.reason, tool: tool.name });
               const { data: existingApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "pending").maybeSingle();
               if (!existingApproval) await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
               await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
@@ -100,11 +115,12 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
         }
         return { validated: true };
       };
-      const result = await withRetry((_attempt, signal) => withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal), { maxAttempts: step.order === 3 ? 3 : 2, baseDelayMs: 500, signal: options?.signal });
+      const result = await withRetry((_attempt, signal) => { activeAttempt = _attempt; return withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal); }, { maxAttempts: step.order === 3 ? 3 : 2, baseDelayMs: 500, signal: options?.signal });
       if (typeof result === "object" && result && "__approval" in result) return { taskId, status: "waiting_approval", steps, usage };
       step.status = "completed";
       step.output = result;
       await persistStep(step.order, "completed", result);
+      await trace(step.order, "completed", { name: step.name });
       activeStepOrder = undefined;
     }
     if (await isCancelled()) throw new Error("Task cancelled");
@@ -115,6 +131,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     const cancelled = message === "Task cancelled" || message === "Operation cancelled" || options?.signal?.aborted;
     if (activeStepOrder !== undefined) {
       await persistStep(activeStepOrder, cancelled ? "cancelled" : "failed", undefined, message);
+      await trace(activeStepOrder, cancelled ? "cancelled" : "failed", { error: message });
     }
     await supabase.from("tasks").update({ status: cancelled ? "cancelled" : "failed", error: message, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     return { taskId, status: cancelled ? "cancelled" : "failed", steps, usage };
