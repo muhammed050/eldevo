@@ -4,11 +4,14 @@ import { authorizeTool } from "./policy";
 import { getTool } from "./tools";
 import { runModel } from "@/lib/ai/provider";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { withRetry, withTimeout } from "./reliability";
 import type { AgentDefinition, TaskInput, TaskResult } from "./types";
 
-export async function executeTask(input: TaskInput, agent: AgentDefinition, userId: string, options?: { taskId?: string; resume?: boolean; enqueue?: boolean; signal?: AbortSignal }): Promise<TaskResult> {
-  const supabase = await createSupabaseServerClient();
+type RuntimeOptions = { taskId?: string; resume?: boolean; enqueue?: boolean; serviceRole?: boolean; signal?: AbortSignal };
+
+export async function executeTask(input: TaskInput, agent: AgentDefinition, userId: string, options?: RuntimeOptions): Promise<TaskResult> {
+  const supabase = options?.serviceRole ? createSupabaseServiceClient() : await createSupabaseServerClient();
   const taskId = options?.taskId ?? randomUUID();
   const budget = input.budgetCents ?? agent.budgetCents;
   let steps = planTask(taskId, input.goal, agent);
@@ -18,13 +21,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   let activeAttempt = 1;
 
   const trace = async (stepIndex: number, eventType: string, metadata: Record<string, unknown> = {}) => {
-    const { error } = await supabase.rpc("record_task_step_trace", {
-      p_task_id: taskId,
-      p_step_index: stepIndex,
-      p_event_type: eventType,
-      p_attempt: activeAttempt,
-      p_metadata: metadata,
-    });
+    const { error } = await supabase.rpc("record_task_step_trace", { p_task_id: taskId, p_step_index: stepIndex, p_event_type: eventType, p_attempt: activeAttempt, p_metadata: metadata });
     if (error) throw new Error(`Could not persist step trace: ${error.message}`);
   };
 
@@ -101,8 +98,12 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
               await persistStep(3, "waiting_approval", { requiresApproval: true, reason: decision.reason, tool: tool.name });
               await trace(3, "waiting_approval", { reason: decision.reason, tool: tool.name });
               const { data: existingApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "pending").maybeSingle();
-              if (!existingApproval) await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
-              await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
+              if (!existingApproval) {
+                const { error: approvalError } = await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
+                if (approvalError) throw new Error(`Could not create approval: ${approvalError.message}`);
+              }
+              const { error: taskError } = await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
+              if (taskError) throw new Error(`Could not pause task: ${taskError.message}`);
               return { __approval: true };
             }
             if (!decision.allowed) throw new Error(decision.reason ?? "Tool execution denied");
