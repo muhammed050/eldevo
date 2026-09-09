@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Agent not found" }, { status: 409 });
     }
 
-    const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent, user.id, { taskId: task.id, resume: true });
+    const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent, user.id, { taskId: task.id, resume: true, approvalId });
     return NextResponse.json({ ok: true, approvalId, decision, resumed: result.status !== "waiting_approval", result });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid request" }, { status: 400 });
