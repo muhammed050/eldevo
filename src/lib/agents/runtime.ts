@@ -8,7 +8,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { withRetry, withTimeout } from "./reliability";
 import type { AgentDefinition, TaskInput, TaskResult } from "./types";
 
-type RuntimeOptions = { taskId?: string; resume?: boolean; enqueue?: boolean; serviceRole?: boolean; signal?: AbortSignal };
+type RuntimeOptions = { taskId?: string; resume?: boolean; enqueue?: boolean; serviceRole?: boolean; approvalId?: string; signal?: AbortSignal };
 
 export async function executeTask(input: TaskInput, agent: AgentDefinition, userId: string, options?: RuntimeOptions): Promise<TaskResult> {
   const supabase = options?.serviceRole ? createSupabaseServiceClient() : await createSupabaseServerClient();
@@ -48,8 +48,10 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     const { data: dbSteps, error } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", taskId).order("step_index");
     if (error) throw new Error(`Could not load task steps: ${error.message}`);
     steps = (dbSteps ?? []).map((s) => ({ id: s.id, taskId: s.task_id, order: s.step_index, name: s.name, status: s.status, input: s.input, output: s.output, error: s.error }));
-    const { data: approvedApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "approved").order("decided_at", { ascending: false }).limit(1).maybeSingle();
-    approvedResume = Boolean(approvedApproval);
+    if (options?.approvalId) {
+      const { data: approvedApproval } = await supabase.from("approvals").select("id").eq("id", options.approvalId).eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "approved").maybeSingle();
+      approvedResume = Boolean(approvedApproval);
+    }
   }
 
   const { data: claimed, error: claimError } = await supabase.rpc("claim_task", { p_task_id: taskId, p_attempt: 1 });
