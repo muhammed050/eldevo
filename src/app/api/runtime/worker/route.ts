@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent as AgentDefinition, task.created_by, { taskId: task.id, resume: true, serviceRole: true });
-    const terminal = ["completed", "failed", "cancelled"].includes(result.status);
+    const terminal = ["completed", "failed", "cancelled", "waiting_approval"].includes(result.status);
     await finishTaskQueueItem(queueItem.id, workerId, terminal, terminal ? undefined : `Task returned ${result.status}`);
     return NextResponse.json({ claimed: true, queueId: queueItem.id, result });
   } catch (error) {
