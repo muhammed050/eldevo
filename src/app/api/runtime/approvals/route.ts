@@ -24,17 +24,17 @@ export async function PATCH(request: Request) {
     if (!decided) return NextResponse.json({ error: "Approval was already decided" }, { status: 409 });
 
     const { error: auditError } = await supabase.from("audit_logs").insert({ organization_id: approval.organization_id, user_id: user.id, action: `approval.${decision}`, resource_type: "approval", resource_id: approvalId, metadata: { task_id: approval.task_id } });
-    if (auditError) return NextResponse.json({ error: auditError.message }, { status: 400 });
+    const auditWarning = auditError ? "Approval recorded, but audit logging failed" : undefined;
 
     if (decision === "rejected") {
       const { error: cancelError } = await supabase.from("tasks").update({ status: "cancelled", error: "Human approval rejected" }).eq("id", approval.task_id).eq("organization_id", approval.organization_id).eq("status", "waiting_approval");
       if (cancelError) return NextResponse.json({ error: cancelError.message }, { status: 400 });
-      return NextResponse.json({ ok: true, approvalId, decision });
+      return NextResponse.json({ ok: true, approvalId, decision, ...(auditWarning ? { warning: auditWarning } : {}) });
     }
 
     const { data: resumed, error: resumeError } = await supabase.rpc("resume_task_after_approval", { p_task_id: approval.task_id, p_approval_id: approvalId });
     if (resumeError) return NextResponse.json({ error: resumeError.message }, { status: 400 });
-    if (resumed !== true) return NextResponse.json({ ok: true, approvalId, decision, resumed: false });
+    if (resumed !== true) return NextResponse.json({ ok: true, approvalId, decision, resumed: false, ...(auditWarning ? { warning: auditWarning } : {}) });
 
     const { data: task } = await supabase.from("tasks").select("id,organization_id,agent_id,goal,budget_cents,metadata").eq("id", approval.task_id).eq("organization_id", approval.organization_id).eq("status", "pending").maybeSingle();
     if (!task) return NextResponse.json({ error: "Task not found or not resumable" }, { status: 409 });
@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
     }
 
     const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent, user.id, { taskId: task.id, resume: true, approvalId });
-    return NextResponse.json({ ok: true, approvalId, decision, resumed: result.status !== "waiting_approval", result });
+    return NextResponse.json({ ok: true, approvalId, decision, resumed: result.status !== "waiting_approval", result, ...(auditWarning ? { warning: auditWarning } : {}) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid request" }, { status: 400 });
   }
