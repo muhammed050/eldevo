@@ -6,6 +6,7 @@ import { runModel } from "@/lib/ai/provider";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { withRetry, withTimeout } from "./reliability";
+import { classifyRuntimeError, RuntimeError } from "./errors";
 import type { AgentDefinition, TaskInput, TaskResult } from "./types";
 
 type RuntimeOptions = { taskId?: string; resume?: boolean; enqueue?: boolean; serviceRole?: boolean; approvalId?: string; signal?: AbortSignal };
@@ -22,7 +23,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
 
   const trace = async (stepIndex: number, eventType: string, metadata: Record<string, unknown> = {}) => {
     const { error } = await supabase.rpc("record_task_step_trace", { p_task_id: taskId, p_step_index: stepIndex, p_event_type: eventType, p_attempt: activeAttempt, p_metadata: metadata });
-    if (error) throw new Error(`Could not persist step trace: ${error.message}`);
+    if (error) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not persist step trace: ${error.message}`, { retryable: true, cause: error });
   };
 
   if (!options?.resume) {
@@ -30,23 +31,23 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     if (error) {
       if (input.idempotencyKey && error.code === "23505") {
         const { data: existing, error: lookupError } = await supabase.from("tasks").select("id,status,output,error").eq("organization_id", input.organizationId).eq("idempotency_key", input.idempotencyKey).maybeSingle();
-        if (lookupError || !existing) throw new Error(`Could not create task: ${error.message}`);
+        if (lookupError || !existing) throw new RuntimeError("TASK_PERSISTENCE_FAILED", `Could not create task: ${error.message}`, { cause: error });
         const { data: existingSteps } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", existing.id).order("step_index");
         return { taskId: existing.id, status: existing.status, output: existing.output, steps: (existingSteps ?? []).map((s) => ({ id: s.id, taskId: s.task_id, order: s.step_index, name: s.name, status: s.status, input: s.input, output: s.output, error: s.error })), usage };
       }
-      throw new Error(`Could not create task: ${error.message}`);
+      throw new RuntimeError("TASK_PERSISTENCE_FAILED", `Could not create task: ${error.message}`, { cause: error });
     }
     const rows = steps.map((s) => ({ id: randomUUID(), task_id: taskId, step_index: s.order, name: s.name, status: "pending", input: s.input ?? null }));
     const { error: stepError } = await supabase.from("task_steps").insert(rows);
-    if (stepError) throw new Error(`Could not create task steps: ${stepError.message}`);
+    if (stepError) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not create task steps: ${stepError.message}`, { cause: stepError });
     if (options?.enqueue) {
       const { error: queueError } = await supabase.rpc("enqueue_task", { p_task_id: taskId, p_organization_id: input.organizationId });
-      if (queueError) throw new Error(`Could not enqueue task: ${queueError.message}`);
+      if (queueError) throw new RuntimeError("QUEUE_FAILURE", `Could not enqueue task: ${queueError.message}`, { retryable: true, cause: queueError });
       return { taskId, status: "pending", steps, usage };
     }
   } else {
     const { data: dbSteps, error } = await supabase.from("task_steps").select("id,task_id,step_index,name,status,input,output,error").eq("task_id", taskId).order("step_index");
-    if (error) throw new Error(`Could not load task steps: ${error.message}`);
+    if (error) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not load task steps: ${error.message}`, { retryable: true, cause: error });
     steps = (dbSteps ?? []).map((s) => ({ id: s.id, taskId: s.task_id, order: s.step_index, name: s.name, status: s.status, input: s.input, output: s.output, error: s.error }));
     if (options?.approvalId) {
       const { data: approvedApproval } = await supabase.from("approvals").select("id").eq("id", options.approvalId).eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "approved").maybeSingle();
@@ -59,12 +60,12 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     const { data: current } = await supabase.from("tasks").select("status,output,error").eq("id", taskId).eq("organization_id", input.organizationId).maybeSingle();
     if (current?.status === "completed") return { taskId, status: "completed", output: current.output, steps, usage };
     if (current?.status === "waiting_approval") return { taskId, status: "waiting_approval", steps, usage };
-    throw new Error(`Task ${taskId} could not be claimed`);
+    throw new RuntimeError("TASK_CLAIM_FAILED", `Task ${taskId} could not be claimed`, { retryable: true, cause: claimError });
   }
 
   const persistStep = async (index: number, status: string, output?: unknown, error?: string) => {
     const { error: persistError } = await supabase.from("task_steps").update({ status, output: output ?? null, error: error ?? null, started_at: status === "running" ? new Date().toISOString() : undefined, completed_at: ["completed", "failed", "cancelled"].includes(status) ? new Date().toISOString() : null }).eq("task_id", taskId).eq("step_index", index);
-    if (persistError) throw new Error(`Could not persist step ${index}: ${persistError.message}`);
+    if (persistError) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not persist step ${index}: ${persistError.message}`, { retryable: true, cause: persistError });
   };
   const isCancelled = async () => {
     if (options?.signal?.aborted) return true;
@@ -75,17 +76,17 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
   try {
     for (const step of steps) {
       if (step.status === "completed") continue;
-      if (await isCancelled()) throw new Error("Task cancelled");
+      if (await isCancelled()) throw new RuntimeError("TASK_CANCELLED", "Task cancelled");
       activeStepOrder = step.order;
       activeAttempt = 1;
       await trace(step.order, "started", { name: step.name });
       const { data: stepClaimed, error: stepClaimError } = await supabase.rpc("claim_task_step", { p_task_id: taskId, p_step_index: step.order });
-      if (stepClaimError) throw new Error(`Could not claim step ${step.order}: ${stepClaimError.message}`);
+      if (stepClaimError) throw new RuntimeError("STEP_CLAIM_FAILED", `Could not claim step ${step.order}: ${stepClaimError.message}`, { retryable: true, cause: stepClaimError });
       if (stepClaimed !== true) {
         const { data: currentStep } = await supabase.from("task_steps").select("status,output,error").eq("task_id", taskId).eq("step_index", step.order).maybeSingle();
         if (currentStep?.status === "completed") { step.status = "completed"; step.output = currentStep.output; step.error = currentStep.error; continue; }
         if (currentStep?.status === "waiting_approval") return { taskId, status: "waiting_approval", steps, usage };
-        throw new Error(`Step ${step.order} is already being executed`);
+        throw new RuntimeError("STEP_CLAIM_FAILED", `Step ${step.order} is already being executed`, { retryable: true });
       }
       const executeStep = async () => {
         if (step.order === 1) return { understood: true, goal: input.goal };
@@ -94,7 +95,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
           const toolName = agent.tools[0];
           if (toolName) {
             const tool = getTool(toolName);
-            if (!tool) throw new Error(`Unknown tool: ${toolName}`);
+            if (!tool) throw new RuntimeError("TOOL_NOT_FOUND", `Unknown tool: ${toolName}`);
             const decision = authorizeTool({ ...agent, budgetCents: budget }, tool, usage.costCents);
             if (decision.requiresApproval && !approvedResume) {
               await persistStep(3, "waiting_approval", { requiresApproval: true, reason: decision.reason, tool: tool.name });
@@ -102,19 +103,23 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
               const { data: existingApproval } = await supabase.from("approvals").select("id").eq("task_id", taskId).eq("organization_id", input.organizationId).eq("status", "pending").maybeSingle();
               if (!existingApproval) {
                 const { error: approvalError } = await supabase.from("approvals").insert({ organization_id: input.organizationId, task_id: taskId, requested_by: userId, status: "pending", action: `tool:${tool.name}`, reason: decision.reason ?? "Approval required", payload: { goal: input.goal, tool: tool.name } });
-                if (approvalError) throw new Error(`Could not create approval: ${approvalError.message}`);
+                if (approvalError) throw new RuntimeError("APPROVAL_PERSISTENCE_FAILED", `Could not create approval: ${approvalError.message}`, { retryable: true, cause: approvalError });
               }
               const { error: taskError } = await supabase.from("tasks").update({ status: "waiting_approval" }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
-              if (taskError) throw new Error(`Could not pause task: ${taskError.message}`);
+              if (taskError) throw new RuntimeError("TASK_PERSISTENCE_FAILED", `Could not pause task: ${taskError.message}`, { cause: taskError });
               return { __approval: true };
             }
-            if (!decision.allowed) throw new Error(decision.reason ?? "Tool execution denied");
+            if (!decision.allowed) throw new RuntimeError("TOOL_DENIED", decision.reason ?? "Tool execution denied");
             return tool.execute({ goal: input.goal }, { organizationId: input.organizationId, agentId: agent.id, taskId });
           }
-          const result = await runModel({ model: agent.model, system: agent.instructions, prompt: input.goal });
-          usage.inputTokens += result.usage.inputTokens;
-          usage.outputTokens += result.usage.outputTokens;
-          return { text: result.text, usage: result.usage };
+          try {
+            const result = await runModel({ model: agent.model, system: agent.instructions, prompt: input.goal });
+            usage.inputTokens += result.usage.inputTokens;
+            usage.outputTokens += result.usage.outputTokens;
+            return { text: result.text, usage: result.usage };
+          } catch (error) {
+            throw new RuntimeError("MODEL_FAILURE", "Model execution failed", { retryable: true, cause: error });
+          }
         }
         return { validated: true };
       };
@@ -126,17 +131,19 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       await trace(step.order, "completed", { name: step.name });
       activeStepOrder = undefined;
     }
-    if (await isCancelled()) throw new Error("Task cancelled");
-    await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, cost_cents: usage.costCents, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
+    if (await isCancelled()) throw new RuntimeError("TASK_CANCELLED", "Task cancelled");
+    const { error: taskCompleteError } = await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, cost_cents: usage.costCents, completed_at: new Date().toISOString(), error_code: null, error_retryable: false }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
+    if (taskCompleteError) throw new RuntimeError("TASK_PERSISTENCE_FAILED", `Could not complete task: ${taskCompleteError.message}`, { retryable: true, cause: taskCompleteError });
     return { taskId, status: "completed", output: steps.at(-1)?.output, steps, usage };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Task execution failed";
-    const cancelled = message === "Task cancelled" || message === "Operation cancelled" || options?.signal?.aborted;
+    const runtimeError = error instanceof RuntimeError ? error : classifyRuntimeError(error);
+    const cancelled = runtimeError.code === "TASK_CANCELLED" || options?.signal?.aborted;
     if (activeStepOrder !== undefined) {
-      await persistStep(activeStepOrder, cancelled ? "cancelled" : "failed", undefined, message);
-      await trace(activeStepOrder, cancelled ? "cancelled" : "failed", { error: message });
+      await persistStep(activeStepOrder, cancelled ? "cancelled" : "failed", undefined, runtimeError.message);
+      await supabase.from("task_steps").update({ error_code: runtimeError.code, error_retryable: runtimeError.retryable }).eq("task_id", taskId).eq("step_index", activeStepOrder);
+      await trace(activeStepOrder, cancelled ? "cancelled" : "failed", { error: runtimeError.message, code: runtimeError.code, retryable: runtimeError.retryable });
     }
-    await supabase.from("tasks").update({ status: cancelled ? "cancelled" : "failed", error: message, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
+    await supabase.from("tasks").update({ status: cancelled ? "cancelled" : "failed", error: runtimeError.message, error_code: runtimeError.code, error_retryable: runtimeError.retryable, completed_at: new Date().toISOString() }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     return { taskId, status: cancelled ? "cancelled" : "failed", steps, usage };
   }
 }
