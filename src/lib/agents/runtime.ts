@@ -7,9 +7,19 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { withRetry, withTimeout } from "./reliability";
 import { classifyRuntimeError, RuntimeError } from "./errors";
+import { addUsage, calculateCostCents, parseModel } from "./usage";
 import type { AgentDefinition, TaskInput, TaskResult } from "./types";
 
 type RuntimeOptions = { taskId?: string; resume?: boolean; enqueue?: boolean; serviceRole?: boolean; approvalId?: string; signal?: AbortSignal };
+type ModelExecutionResult = {
+  text: string;
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  __usage: { provider: string; model: string; inputTokens: number; outputTokens: number; costCents: number; latencyMs: number };
+};
+
+function isModelExecutionResult(value: unknown): value is ModelExecutionResult {
+  return Boolean(value && typeof value === "object" && "__usage" in value);
+}
 
 export async function executeTask(input: TaskInput, agent: AgentDefinition, userId: string, options?: RuntimeOptions): Promise<TaskResult> {
   const supabase = options?.serviceRole ? createSupabaseServiceClient() : await createSupabaseServerClient();
@@ -40,6 +50,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     const rows = steps.map((s) => ({ id: randomUUID(), task_id: taskId, step_index: s.order, name: s.name, status: "pending", input: s.input ?? null }));
     const { error: stepError } = await supabase.from("task_steps").insert(rows);
     if (stepError) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not create task steps: ${stepError.message}`, { cause: stepError });
+    steps = steps.map((step, index) => ({ ...step, id: rows[index].id }));
     if (options?.enqueue) {
       const { error: queueError } = await supabase.rpc("enqueue_task", { p_task_id: taskId, p_organization_id: input.organizationId });
       if (queueError) throw new RuntimeError("QUEUE_FAILURE", `Could not enqueue task: ${queueError.message}`, { retryable: true, cause: queueError });
@@ -113,10 +124,21 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
             return tool.execute({ goal: input.goal }, { organizationId: input.organizationId, agentId: agent.id, taskId });
           }
           try {
+            const startedAt = Date.now();
             const result = await runModel({ model: agent.model, system: agent.instructions, prompt: input.goal });
-            usage.inputTokens += result.usage.inputTokens;
-            usage.outputTokens += result.usage.outputTokens;
-            return { text: result.text, usage: result.usage };
+            const { provider, name } = parseModel(agent.model);
+            return {
+              text: result.text,
+              usage: result.usage,
+              __usage: {
+                provider,
+                model: name,
+                inputTokens: result.usage.inputTokens,
+                outputTokens: result.usage.outputTokens,
+                costCents: calculateCostCents(agent.model, result.usage.inputTokens, result.usage.outputTokens),
+                latencyMs: Date.now() - startedAt,
+              },
+            } satisfies ModelExecutionResult;
           } catch (error) {
             throw new RuntimeError("MODEL_FAILURE", "Model execution failed", { retryable: true, cause: error });
           }
@@ -125,9 +147,31 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       };
       const result = await withRetry((_attempt, signal) => { activeAttempt = _attempt; return withTimeout(() => executeStep(), (step.order === 3 ? 300 : 60) * 1000, signal); }, { maxAttempts: step.order === 3 ? 3 : 2, baseDelayMs: 500, signal: options?.signal });
       if (typeof result === "object" && result && "__approval" in result) return { taskId, status: "waiting_approval", steps, usage };
+
+      let persistedResult: unknown = result;
+      if (isModelExecutionResult(result)) {
+        const modelUsage = result.__usage;
+        const accountingClient = createSupabaseServiceClient();
+        const { error: usageError } = await accountingClient.rpc("record_task_step_usage", {
+          p_task_id: taskId,
+          p_task_step_id: step.id,
+          p_organization_id: input.organizationId,
+          p_provider: modelUsage.provider,
+          p_model: modelUsage.model,
+          p_attempt: activeAttempt,
+          p_input_tokens: modelUsage.inputTokens,
+          p_output_tokens: modelUsage.outputTokens,
+          p_cost_cents: modelUsage.costCents,
+          p_latency_ms: modelUsage.latencyMs,
+        });
+        if (usageError) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not persist step usage: ${usageError.message}`, { retryable: true, cause: usageError });
+        addUsage(usage, modelUsage.inputTokens, modelUsage.outputTokens, modelUsage.costCents);
+        persistedResult = { text: result.text, usage: result.usage };
+      }
+
       step.status = "completed";
-      step.output = result;
-      await persistStep(step.order, "completed", result);
+      step.output = persistedResult;
+      await persistStep(step.order, "completed", persistedResult);
       await trace(step.order, "completed", { name: step.name });
       activeStepOrder = undefined;
     }
