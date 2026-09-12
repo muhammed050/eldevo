@@ -70,7 +70,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Dead-letter handling.
 - [x] Per-step tracing.
 - [x] Complete runtime error taxonomy.
-- [ ] Production-grade usage/cost accounting.
+- [x] Production-grade usage/cost accounting.
 
 ### Phase 4 — Tool Registry
 
@@ -251,8 +251,8 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] API metering.
 - [ ] Credit system.
 - [x] Cost attribution per task.
-- [ ] Cost attribution per agent.
-- [ ] Cost attribution per organization.
+- [x] Cost attribution per agent.
+- [x] Cost attribution per organization.
 - [ ] Marketplace commissions.
 - [ ] Creator payouts.
 - [ ] Enterprise contracts.
@@ -263,8 +263,8 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Agent health.
 - [x] Task tracing.
 - [ ] Tool tracing.
-- [ ] Model latency.
-- [ ] Token/cost analytics.
+- [x] Model latency.
+- [x] Token/cost analytics.
 - [ ] Error analytics.
 - [ ] Success-rate analytics.
 - [ ] Queue monitoring.
@@ -301,7 +301,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ## Current Runtime Status
 
-The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, per-step tracing, typed runtime error persistence, and service-role-only per-attempt usage/cost metering. New task steps now retain their real persisted UUIDs and model usage is recorded against those step IDs with idempotency protection. Production-grade accounting remains incomplete until pricing coverage, fractional-cost precision, organization/agent aggregation, budget enforcement, and reporting are finished.
+The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, per-step tracing, typed runtime error persistence, and production usage/cost accounting. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, use dated model-pricing snapshots, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views. Current GPT-5.6 pricing entries cover the runtime's OpenAI model family while unknown models retain compatibility fallback accounting.
 
 ## Development Rule
 
