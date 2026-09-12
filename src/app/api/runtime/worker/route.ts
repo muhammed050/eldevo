@@ -26,13 +26,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ claimed: true, queueId: queueItem.id, status: "failed", error: "Task not found" }, { status: 404 });
     }
 
-    const { data: agent, error: agentError } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
-    if (agentError || !agent) {
+    const { data: dbAgent, error: agentError } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
+    if (agentError || !dbAgent) {
       await finishTaskQueueItem(queueItem.id, workerId, false, agentError?.message ?? "Agent not found");
       return NextResponse.json({ claimed: true, queueId: queueItem.id, status: "failed", error: "Agent not found" }, { status: 404 });
     }
 
-    const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent as AgentDefinition, task.created_by, { taskId: task.id, resume: true, serviceRole: true });
+    const agent: AgentDefinition = {
+      id: dbAgent.id,
+      name: dbAgent.name,
+      description: dbAgent.description,
+      instructions: dbAgent.instructions,
+      model: dbAgent.model,
+      tools: dbAgent.tools ?? [],
+      permissions: dbAgent.permissions ?? [],
+      budgetCents: dbAgent.budget_cents,
+      status: dbAgent.status,
+    };
+    const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent, task.created_by, { taskId: task.id, resume: true, serviceRole: true });
     const terminal = ["completed", "failed", "cancelled", "waiting_approval"].includes(result.status);
     await finishTaskQueueItem(queueItem.id, workerId, terminal, terminal ? undefined : `Task returned ${result.status}`);
     return NextResponse.json({ claimed: true, queueId: queueItem.id, result });
