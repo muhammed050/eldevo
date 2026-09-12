@@ -2,7 +2,29 @@
   "name": "eldevo",
   "version": "0.2.0",
   "private": true,
-  "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"next lint","typecheck":"tsc --noEmit"},
-  "dependencies": {"@ai-sdk/openai":"latest","@supabase/ssr":"latest","@supabase/supabase-js":"latest","ai":"latest","next":"latest","react":"latest","react-dom":"latest","zod":"latest"},
-  "devDependencies": {"@types/node":"latest","@types/react":"latest","@types/react-dom":"latest","typescript":"latest"}
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "latest",
+    "@supabase/ssr": "latest",
+    "@supabase/supabase-js": "latest",
+    "ai": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
 }
