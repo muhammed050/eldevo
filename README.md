@@ -200,8 +200,8 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 ### Phase 12 — Developer Platform & API
 
 - [ ] API keys.
-- [ ] API authentication.
-- [ ] Task API.
+- [x] API authentication.
+- [x] Task API.
 - [ ] Agent API.
 - [ ] Team API.
 - [ ] Tool API.
@@ -209,7 +209,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Webhooks.
 - [ ] SDKs.
 - [ ] Rate limiting.
-- [ ] Usage metering.
+- [x] Usage metering.
 - [ ] Developer dashboard.
 - [ ] API documentation.
 
@@ -250,7 +250,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Team billing.
 - [ ] API metering.
 - [ ] Credit system.
-- [ ] Cost attribution per task.
+- [x] Cost attribution per task.
 - [ ] Cost attribution per agent.
 - [ ] Cost attribution per organization.
 - [ ] Marketplace commissions.
@@ -261,7 +261,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 - [ ] Runtime dashboard.
 - [ ] Agent health.
-- [ ] Task tracing.
+- [x] Task tracing.
 - [ ] Tool tracing.
 - [ ] Model latency.
 - [ ] Token/cost analytics.
@@ -274,8 +274,8 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ### Phase 17 — Scale
 
-- [ ] Background workers.
-- [ ] Queue architecture.
+- [x] Background workers.
+- [x] Queue architecture.
 - [ ] Horizontal scaling.
 - [ ] Caching.
 - [ ] Rate limiting.
@@ -301,7 +301,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ## Current Runtime Status
 
-The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, per-step tracing, and typed runtime error persistence. Usage/cost ledger primitives exist, but production-grade accounting is not yet integrated into the runtime execution path.
+The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, per-step tracing, typed runtime error persistence, and service-role-only per-attempt usage/cost metering. New task steps now retain their real persisted UUIDs and model usage is recorded against those step IDs with idempotency protection. Production-grade accounting remains incomplete until pricing coverage, fractional-cost precision, organization/agent aggregation, budget enforcement, and reporting are finished.
 
 ## Development Rule
 
