@@ -1,8 +1,16 @@
-export type Usage = { inputTokens: number; outputTokens: number; costCents: number };
+export type Usage = { inputTokens: number; outputTokens: number; costCents: number; costMicrocents?: number };
 
-const PRICES_PER_MILLION_CENTS: Record<string, { input: number; output: number }> = {
-  "gpt-4o": { input: 250, output: 1000 },
-  "gpt-4o-mini": { input: 15, output: 60 },
+type ModelPrice = { inputCentsPerMillion: number; outputCentsPerMillion: number };
+
+// Prices are explicit snapshots used for deterministic accounting. Keep aliases in
+// sync with the runtime model registry and update deliberately when provider prices change.
+const PRICES: Record<string, ModelPrice> = {
+  "gpt-5.6": { inputCentsPerMillion: 400, outputCentsPerMillion: 2000 },
+  "gpt-5.6-sol": { inputCentsPerMillion: 400, outputCentsPerMillion: 2000 },
+  "gpt-5.6-terra": { inputCentsPerMillion: 200, outputCentsPerMillion: 1200 },
+  "gpt-5.6-luna": { inputCentsPerMillion: 20, outputCentsPerMillion: 120 },
+  "gpt-4o": { inputCentsPerMillion: 250, outputCentsPerMillion: 1000 },
+  "gpt-4o-mini": { inputCentsPerMillion: 15, outputCentsPerMillion: 60 },
 };
 
 export function parseModel(model: string) {
@@ -11,14 +19,35 @@ export function parseModel(model: string) {
   return { provider, name };
 }
 
-export function calculateCostCents(model: string, inputTokens: number, outputTokens: number) {
+export function getModelPrice(model: string): ModelPrice | null {
   const { name } = parseModel(model);
-  const price = PRICES_PER_MILLION_CENTS[name] ?? { input: 0, output: 0 };
-  return Math.ceil((inputTokens * price.input + outputTokens * price.output) / 1_000_000);
+  return PRICES[name] ?? null;
 }
 
-export function addUsage(target: Usage, inputTokens: number, outputTokens: number, costCents: number) {
+export function calculateCostMicrocents(model: string, inputTokens: number, outputTokens: number) {
+  const price = getModelPrice(model);
+  if (!price) return 0;
+
+  // One token multiplied by "cents per million tokens" is exactly one microcent.
+  return (
+    Math.max(0, inputTokens) * price.inputCentsPerMillion +
+    Math.max(0, outputTokens) * price.outputCentsPerMillion
+  );
+}
+
+export function microcentsToCents(costMicrocents: number) {
+  return Math.ceil(Math.max(0, costMicrocents) / 1_000_000);
+}
+
+export function calculateCostCents(model: string, inputTokens: number, outputTokens: number) {
+  return microcentsToCents(calculateCostMicrocents(model, inputTokens, outputTokens));
+}
+
+export function addUsage(target: Usage, inputTokens: number, outputTokens: number, costCents: number, costMicrocents?: number) {
   target.inputTokens += Math.max(0, inputTokens);
   target.outputTokens += Math.max(0, outputTokens);
   target.costCents += Math.max(0, costCents);
+  if (typeof costMicrocents === "number") {
+    target.costMicrocents = (target.costMicrocents ?? 0) + Math.max(0, costMicrocents);
+  }
 }
