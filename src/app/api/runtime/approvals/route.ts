@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { executeTask } from "@/lib/agents/runtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { AgentDefinition } from "@/lib/agents/types";
 
 const schema = z.object({ approvalId: z.string().uuid(), decision: z.enum(["approved", "rejected"]) });
 
@@ -38,12 +39,23 @@ export async function PATCH(request: Request) {
 
     const { data: task } = await supabase.from("tasks").select("id,organization_id,agent_id,goal,budget_cents,metadata").eq("id", approval.task_id).eq("organization_id", approval.organization_id).eq("status", "pending").maybeSingle();
     if (!task) return NextResponse.json({ error: "Task not found or not resumable" }, { status: 409 });
-    const { data: agent } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
-    if (!agent) {
+    const { data: dbAgent } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
+    if (!dbAgent) {
       await supabase.from("tasks").update({ status: "failed", error: "Agent not found" }).eq("id", task.id).eq("organization_id", task.organization_id).eq("status", "pending");
       return NextResponse.json({ error: "Agent not found" }, { status: 409 });
     }
 
+    const agent: AgentDefinition = {
+      id: dbAgent.id,
+      name: dbAgent.name,
+      description: dbAgent.description,
+      instructions: dbAgent.instructions,
+      model: dbAgent.model,
+      tools: dbAgent.tools ?? [],
+      permissions: dbAgent.permissions ?? [],
+      budgetCents: dbAgent.budget_cents,
+      status: dbAgent.status,
+    };
     const result = await executeTask({ organizationId: task.organization_id, goal: task.goal, agentId: task.agent_id, budgetCents: task.budget_cents, metadata: task.metadata ?? {} }, agent, user.id, { taskId: task.id, resume: true, approvalId });
     return NextResponse.json({ ok: true, approvalId, decision, resumed: result.status !== "waiting_approval", result, ...(auditWarning ? { warning: auditWarning } : {}) });
   } catch (error) {
