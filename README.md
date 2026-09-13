@@ -70,7 +70,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Dead-letter handling.
 - [x] Per-step tracing.
 - [x] Complete runtime error taxonomy.
-- [x] Production-grade usage/cost accounting.
+- [ ] Production-grade usage/cost accounting.
 
 ### Phase 4 — Tool Registry
 
@@ -301,7 +301,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ## Current Runtime Status
 
-The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, per-step tracing, typed runtime error persistence, and production usage/cost accounting. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, use dated model-pricing snapshots, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views. Current GPT-5.6 pricing entries cover the runtime's OpenAI model family while unknown models retain compatibility fallback accounting.
+The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, use dated model-pricing snapshots, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views. Current GPT-5.6 base input/output prices are represented, but billing-grade parity is not complete yet because cached-input usage and provider pricing modifiers such as long-context surcharges are not recorded separately.
 
 ## Development Rule
 
