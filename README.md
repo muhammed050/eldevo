@@ -65,7 +65,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Atomic state transitions and idempotency keys.
 - [x] Retry policy with exponential backoff.
 - [x] Timeout and cancellation handling.
-- [ ] Concurrent step execution where safe.
+- [x] Concurrent step execution where safe.
 - [x] Durable background worker/queue.
 - [x] Dead-letter handling.
 - [x] Per-step tracing.
@@ -301,7 +301,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ## Current Runtime Status
 
-The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, use dated model-pricing snapshots, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views. Current GPT-5.6 base input/output prices are represented, but billing-grade parity is not complete yet because cached-input usage and provider pricing modifiers such as long-context surcharges are not recorded separately.
+The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, bounded opt-in concurrent execution for explicitly independent steps, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Parallel execution is restricted to steps explicitly marked `parallelSafe` in the persisted plan and sharing a `parallelGroup`; tool execution, approval-gated work, and validation remain sequential by default. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, use dated model-pricing snapshots, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views. Current GPT-5.6 base input/output prices are represented, but billing-grade parity is not complete yet because cached-input usage and provider pricing modifiers such as long-context surcharges are not recorded separately.
 
 ## Development Rule
 
