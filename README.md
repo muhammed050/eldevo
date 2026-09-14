@@ -80,7 +80,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Tool configuration and secrets references.
 - [x] Organization-specific tools.
 - [x] Global platform tools.
-- [ ] Tool permissions and scopes.
+- [x] Tool permissions and scopes.
 - [x] Tool risk classification.
 - [ ] Tool execution logs.
 - [ ] Tool health checks.
@@ -303,7 +303,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, bounded opt-in concurrent execution for explicitly independent steps, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Parallel execution is restricted to steps explicitly marked `parallelSafe` in the persisted plan and sharing a `parallelGroup`; tool execution, approval-gated work, and validation remain sequential by default. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, capture uncached input, cache-read, cache-write and output token classes, use dated model-pricing snapshots, apply GPT-5.6 long-context pricing modifiers, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views.
 
-The Tool Registry now has database-backed tenant/global definitions with versions, input/output schemas, risk classification, configuration, secret references, executor bindings and deterministic organization-over-global resolution. Runtime execution adapters remain server-side so database metadata cannot inject arbitrary executable code.
+The Tool Registry now has database-backed tenant/global definitions with versions, input/output schemas, risk classification, configuration, secret references, executor bindings and deterministic organization-over-global resolution. Runtime tool execution resolves through that registry before policy checks, so organization-specific permissions/risk metadata are enforced while executable adapters remain server-side and database metadata cannot inject arbitrary executable code.
 
 ## Development Rule
 
