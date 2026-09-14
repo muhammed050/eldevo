@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { planTask } from "./planner";
 import { authorizeTool } from "./policy";
-import { getTool } from "./tools";
+import { resolveRegisteredTool } from "./tool-registry";
 import { runModel } from "@/lib/ai/provider";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
@@ -193,8 +193,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
         if (step.order === 3) {
           const toolName = agent.tools[0];
           if (toolName) {
-            const tool = getTool(toolName);
-            if (!tool) throw new RuntimeError("TOOL_NOT_FOUND", `Unknown tool: ${toolName}`);
+            const { implementation: tool } = await resolveRegisteredTool(input.organizationId, toolName, { serviceRole: options?.serviceRole });
             const decision = authorizeTool({ ...agent, budgetCents: budget }, tool, usage.costCents);
             if (decision.requiresApproval && !approvedResume) {
               await persistStep(3, "waiting_approval", { requiresApproval: true, reason: decision.reason, tool: tool.name });
@@ -228,7 +227,6 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
                 provider,
                 model: name,
                 inputTokens: result.usage.inputTokens,
-                outputTokens: result.usage.outputTokens,
                 ...detailedUsage,
                 costCents: calculateDetailedCostCents(agent.model, detailedUsage),
                 latencyMs: Date.now() - startedAt,
