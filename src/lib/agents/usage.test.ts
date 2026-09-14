@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addUsage, calculateCostCents, parseModel } from "./usage";
+import { addUsage, calculateCostCents, calculateDetailedCostMicrocents, parseModel } from "./usage";
 
 describe("usage accounting helpers", () => {
   it("parses provider-qualified model identifiers", () => {
@@ -14,6 +14,24 @@ describe("usage accounting helpers", () => {
 
   it("rounds sub-cent spend up so billable usage is not silently lost", () => {
     expect(calculateCostCents("openai:gpt-4o-mini", 1, 0)).toBe(1);
+  });
+
+  it("prices GPT-5.6 cache reads and cache writes separately", () => {
+    expect(calculateDetailedCostMicrocents("openai:gpt-5.6-sol", {
+      noCacheInputTokens: 1_000,
+      cacheReadInputTokens: 1_000,
+      cacheWriteInputTokens: 1_000,
+      outputTokens: 1_000,
+    })).toBe(2_940_000);
+  });
+
+  it("applies GPT-5.6 long-context modifiers above 272K input tokens", () => {
+    expect(calculateDetailedCostMicrocents("openai:gpt-5.6-sol", {
+      noCacheInputTokens: 273_000,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 1_000,
+    })).toBe(248_400_000);
   });
 
   it("does not add negative usage values", () => {
