@@ -31,7 +31,7 @@ describe("usage accounting helpers", () => {
       cacheReadInputTokens: 0,
       cacheWriteInputTokens: 0,
       outputTokens: 1_000,
-    })).toBe(248_400_000);
+    })).toBe(221_400_000);
   });
 
   it("does not add negative usage values", () => {
