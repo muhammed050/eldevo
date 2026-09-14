@@ -7,14 +7,31 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { mapConcurrent, withRetry, withTimeout } from "./reliability";
 import { classifyRuntimeError, RuntimeError } from "./errors";
-import { addUsage, calculateCostCents, parseModel } from "./usage";
+import { addUsage, calculateDetailedCostCents, parseModel } from "./usage";
 import type { AgentDefinition, TaskInput, TaskResult, TaskStep } from "./types";
 
 type RuntimeOptions = { taskId?: string; resume?: boolean; enqueue?: boolean; serviceRole?: boolean; approvalId?: string; signal?: AbortSignal };
 type ModelExecutionResult = {
   text: string;
-  usage: { inputTokens: number; outputTokens: number; totalTokens: number };
-  __usage: { provider: string; model: string; inputTokens: number; outputTokens: number; costCents: number; latencyMs: number };
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    noCacheInputTokens: number;
+    cacheReadInputTokens: number;
+    cacheWriteInputTokens: number;
+  };
+  __usage: {
+    provider: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    noCacheInputTokens: number;
+    cacheReadInputTokens: number;
+    cacheWriteInputTokens: number;
+    costCents: number;
+    latencyMs: number;
+  };
 };
 
 type ParallelStepMetadata = { parallelSafe?: boolean; parallelGroup?: string };
@@ -198,6 +215,12 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
             const startedAt = Date.now();
             const result = await runModel({ model: agent.model, system: agent.instructions, prompt: input.goal });
             const { provider, name } = parseModel(agent.model);
+            const detailedUsage = {
+              noCacheInputTokens: result.usage.noCacheInputTokens,
+              cacheReadInputTokens: result.usage.cacheReadInputTokens,
+              cacheWriteInputTokens: result.usage.cacheWriteInputTokens,
+              outputTokens: result.usage.outputTokens,
+            };
             return {
               text: result.text,
               usage: result.usage,
@@ -206,7 +229,8 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
                 model: name,
                 inputTokens: result.usage.inputTokens,
                 outputTokens: result.usage.outputTokens,
-                costCents: calculateCostCents(agent.model, result.usage.inputTokens, result.usage.outputTokens),
+                ...detailedUsage,
+                costCents: calculateDetailedCostCents(agent.model, detailedUsage),
                 latencyMs: Date.now() - startedAt,
               },
             } satisfies ModelExecutionResult;
@@ -224,16 +248,17 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
       if (isModelExecutionResult(result)) {
         const modelUsage = result.__usage;
         const accountingClient = createSupabaseServiceClient();
-        const { error: usageError } = await accountingClient.rpc("record_task_step_usage", {
+        const { error: usageError } = await accountingClient.rpc("record_task_step_usage_v3", {
           p_task_id: taskId,
           p_task_step_id: step.id,
           p_organization_id: input.organizationId,
           p_provider: modelUsage.provider,
           p_model: modelUsage.model,
           p_attempt: activeAttempt,
-          p_input_tokens: modelUsage.inputTokens,
+          p_no_cache_input_tokens: modelUsage.noCacheInputTokens,
+          p_cache_read_input_tokens: modelUsage.cacheReadInputTokens,
+          p_cache_write_input_tokens: modelUsage.cacheWriteInputTokens,
           p_output_tokens: modelUsage.outputTokens,
-          p_cost_cents: modelUsage.costCents,
           p_latency_ms: modelUsage.latencyMs,
         });
         if (usageError) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not persist step usage: ${usageError.message}`, { retryable: true, cause: usageError });
@@ -249,7 +274,7 @@ export async function executeTask(input: TaskInput, agent: AgentDefinition, user
     }
 
     if (await isCancelled()) throw new RuntimeError("TASK_CANCELLED", "Task cancelled");
-    const { error: taskCompleteError } = await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, cost_cents: usage.costCents, completed_at: new Date().toISOString(), error_code: null, error_retryable: false }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
+    const { error: taskCompleteError } = await supabase.from("tasks").update({ status: "completed", output: steps.at(-1)?.output ?? null, completed_at: new Date().toISOString(), error_code: null, error_retryable: false }).eq("id", taskId).eq("organization_id", input.organizationId).eq("status", "running");
     if (taskCompleteError) throw new RuntimeError("TASK_PERSISTENCE_FAILED", `Could not complete task: ${taskCompleteError.message}`, { retryable: true, cause: taskCompleteError });
     return { taskId, status: "completed", output: steps.at(-1)?.output, steps, usage };
   } catch (error) {
