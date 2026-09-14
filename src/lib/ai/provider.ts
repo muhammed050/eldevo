@@ -9,6 +9,15 @@ export type ModelRequest = {
   maxOutputTokens?: number;
 };
 
+export type ModelUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  noCacheInputTokens: number;
+  cacheReadInputTokens: number;
+  cacheWriteInputTokens: number;
+};
+
 function resolveModel(model: string) {
   const provider = model.split(":")[0] as AIProvider;
   const name = model.includes(":") ? model.slice(model.indexOf(":") + 1) : model;
@@ -36,7 +45,14 @@ export async function runModel(request: ModelRequest) {
   if (!resolved) {
     return {
       text: `Mock execution completed for: ${request.prompt}`,
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        noCacheInputTokens: 0,
+        cacheReadInputTokens: 0,
+        cacheWriteInputTokens: 0,
+      } satisfies ModelUsage,
     };
   }
 
@@ -52,12 +68,24 @@ export async function runModel(request: ModelRequest) {
     prompt: request.prompt,
     maxOutputTokens: request.maxOutputTokens ?? 1200,
   });
+
+  const inputTokens = result.usage.inputTokens ?? 0;
+  const outputTokens = result.usage.outputTokens ?? 0;
+  const details = result.usage.inputTokenDetails;
+  const cacheReadInputTokens = details?.cacheReadTokens ?? 0;
+  const cacheWriteInputTokens = details?.cacheWriteTokens ?? 0;
+  const reportedNoCache = details?.noCacheTokens;
+  const noCacheInputTokens = reportedNoCache ?? Math.max(0, inputTokens - cacheReadInputTokens - cacheWriteInputTokens);
+
   return {
     text: result.text,
     usage: {
-      inputTokens: result.usage.inputTokens ?? 0,
-      outputTokens: result.usage.outputTokens ?? 0,
-      totalTokens: result.usage.totalTokens ?? 0,
-    },
+      inputTokens,
+      outputTokens,
+      totalTokens: result.usage.totalTokens ?? inputTokens + outputTokens,
+      noCacheInputTokens,
+      cacheReadInputTokens,
+      cacheWriteInputTokens,
+    } satisfies ModelUsage,
   };
 }
