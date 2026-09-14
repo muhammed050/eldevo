@@ -70,18 +70,18 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Dead-letter handling.
 - [x] Per-step tracing.
 - [x] Complete runtime error taxonomy.
-- [ ] Production-grade usage/cost accounting.
+- [x] Production-grade usage/cost accounting.
 
 ### Phase 4 — Tool Registry
 
-- [ ] Database-backed tool registry.
-- [ ] Tool versions.
-- [ ] Tool schemas using Zod/JSON Schema.
-- [ ] Tool configuration and secrets references.
-- [ ] Organization-specific tools.
-- [ ] Global platform tools.
+- [x] Database-backed tool registry.
+- [x] Tool versions.
+- [x] Tool schemas using Zod/JSON Schema.
+- [x] Tool configuration and secrets references.
+- [x] Organization-specific tools.
+- [x] Global platform tools.
 - [ ] Tool permissions and scopes.
-- [ ] Tool risk classification.
+- [x] Tool risk classification.
 - [ ] Tool execution logs.
 - [ ] Tool health checks.
 - [ ] Tool timeouts and retries.
@@ -301,7 +301,9 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ## Current Runtime Status
 
-The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, bounded opt-in concurrent execution for explicitly independent steps, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Parallel execution is restricted to steps explicitly marked `parallelSafe` in the persisted plan and sharing a `parallelGroup`; tool execution, approval-gated work, and validation remain sequential by default. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, use dated model-pricing snapshots, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views. Current GPT-5.6 base input/output prices are represented, but billing-grade parity is not complete yet because cached-input usage and provider pricing modifiers such as long-context surcharges are not recorded separately.
+The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, bounded opt-in concurrent execution for explicitly independent steps, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Parallel execution is restricted to steps explicitly marked `parallelSafe` in the persisted plan and sharing a `parallelGroup`; tool execution, approval-gated work, and validation remain sequential by default. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, capture uncached input, cache-read, cache-write and output token classes, use dated model-pricing snapshots, apply GPT-5.6 long-context pricing modifiers, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views.
+
+The Tool Registry now has database-backed tenant/global definitions with versions, input/output schemas, risk classification, configuration, secret references, executor bindings and deterministic organization-over-global resolution. Runtime execution adapters remain server-side so database metadata cannot inject arbitrary executable code.
 
 ## Development Rule
 
