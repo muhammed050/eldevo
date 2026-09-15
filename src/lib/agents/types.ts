@@ -9,6 +9,7 @@ export interface AgentDefinition {
   model: string;
   tools: string[];
   permissions: string[];
+  scopes?: string[];
   budgetCents: number;
   status: AgentStatus;
 }
