@@ -11,6 +11,7 @@ export interface ToolDefinition<I = unknown, O = unknown> {
   description: string;
   risk: ToolRisk;
   permissions: string[];
+  scopes?: string[];
   execute: (input: I, context: ToolContext) => Promise<O>;
 }
 
@@ -34,5 +35,6 @@ registerTool({
   description: "Returns structured input. Safe development tool used to verify the runtime.",
   risk: "low",
   permissions: ["tool:echo"],
+  scopes: [],
   async execute(input) { return { ok: true, input }; },
 });
