@@ -13,6 +13,7 @@ const ToolSchema = z.object({
   output_schema: z.record(z.string(), z.unknown()).default({}),
   risk_level: z.enum(["low", "medium", "high"]),
   permissions: z.array(z.string()).default([]),
+  scopes: z.array(z.string()).default([]),
   config: z.record(z.string(), z.unknown()).default({}),
   secret_refs: z.array(z.string()).default([]),
   timeout_ms: z.number().int().min(100).max(600_000).default(30_000),
@@ -39,7 +40,7 @@ export async function loadToolRegistry(
 
   const { data, error } = await supabase
     .from("tools")
-    .select("id,name,description,version,input_schema,output_schema,risk_level,permissions,config,secret_refs,timeout_ms,max_attempts,executor_key,enabled,organization_id,created_at")
+    .select("id,name,description,version,input_schema,output_schema,risk_level,permissions,scopes,config,secret_refs,timeout_ms,max_attempts,executor_key,enabled,organization_id,created_at")
     .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
     .in("name", allowedNames)
     .eq("enabled", true)
@@ -95,6 +96,7 @@ export async function resolveRegisteredTool(
       description: definition.description,
       risk: definition.risk_level as ToolRisk,
       permissions: definition.permissions.length ? definition.permissions : implementation.permissions,
+      scopes: definition.scopes,
     },
   };
 }
