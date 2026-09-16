@@ -14,13 +14,9 @@ export async function POST(request: Request) {
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = schema.parse(await request.json());
 
-    // Resolve the organization from the requested agent instead of arbitrarily using
-    // the user's first membership. RLS ensures only agents in organizations the user
-    // can access are visible, and the explicit membership lookup below provides a
-    // second authorization check for the resolved organization.
     const { data: dbAgent, error: agentError } = await supabase
       .from("agents")
-      .select("id,organization_id,name,description,instructions,model,tools,permissions,budget_cents,status")
+      .select("id,organization_id,name,description,instructions,model,tools,permissions,scopes,budget_cents,status")
       .eq("id", body.agentId)
       .maybeSingle();
     if (agentError || !dbAgent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
@@ -40,7 +36,7 @@ export async function POST(request: Request) {
       if (existing) return NextResponse.json({ taskId: existing.id, status: existing.status, output: existing.output, error: existing.error, idempotentReplay: true });
     }
 
-    const agent: AgentDefinition = { id: dbAgent.id, name: dbAgent.name, description: dbAgent.description, instructions: dbAgent.instructions, model: dbAgent.model, tools: dbAgent.tools ?? [], permissions: dbAgent.permissions ?? [], budgetCents: dbAgent.budget_cents, status: dbAgent.status };
+    const agent: AgentDefinition = { id: dbAgent.id, name: dbAgent.name, description: dbAgent.description, instructions: dbAgent.instructions, model: dbAgent.model, tools: dbAgent.tools ?? [], permissions: dbAgent.permissions ?? [], scopes: dbAgent.scopes ?? [], budgetCents: dbAgent.budget_cents, status: dbAgent.status };
     const result = await executeTask({ organizationId, goal: body.goal, agentId: agent.id, budgetCents: body.budgetCents, idempotencyKey: body.idempotencyKey, metadata: body.metadata ?? {} }, agent, user.id, { enqueue: body.executionMode === "queued" });
     await supabase.from("audit_logs").insert({ organization_id: organizationId, user_id: user.id, action: body.executionMode === "queued" ? "task.enqueue" : "task.execute", resource_type: "task", resource_id: result.taskId, metadata: { agent_id: agent.id, status: result.status, execution_mode: body.executionMode, usage: result.usage } });
     return NextResponse.json(result, { status: result.status === "failed" ? 422 : body.executionMode === "queued" ? 202 : 200 });
