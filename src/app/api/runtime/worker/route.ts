@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ claimed: true, queueId: queueItem.id, status: "failed", error: "Task not found" }, { status: 404 });
     }
 
-    const { data: dbAgent, error: agentError } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
+    const { data: dbAgent, error: agentError } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,scopes,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
     if (agentError || !dbAgent) {
       await finishTaskQueueItem(queueItem.id, workerId, false, agentError?.message ?? "Agent not found");
       return NextResponse.json({ claimed: true, queueId: queueItem.id, status: "failed", error: "Agent not found" }, { status: 404 });
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       model: dbAgent.model,
       tools: dbAgent.tools ?? [],
       permissions: dbAgent.permissions ?? [],
+      scopes: dbAgent.scopes ?? [],
       budgetCents: dbAgent.budget_cents,
       status: dbAgent.status,
     };
