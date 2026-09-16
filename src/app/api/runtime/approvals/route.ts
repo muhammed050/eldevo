@@ -39,7 +39,7 @@ export async function PATCH(request: Request) {
 
     const { data: task } = await supabase.from("tasks").select("id,organization_id,agent_id,goal,budget_cents,metadata").eq("id", approval.task_id).eq("organization_id", approval.organization_id).eq("status", "pending").maybeSingle();
     if (!task) return NextResponse.json({ error: "Task not found or not resumable" }, { status: 409 });
-    const { data: dbAgent } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
+    const { data: dbAgent } = await supabase.from("agents").select("id,name,description,instructions,model,tools,permissions,scopes,budget_cents,status").eq("id", task.agent_id).eq("organization_id", task.organization_id).maybeSingle();
     if (!dbAgent) {
       await supabase.from("tasks").update({ status: "failed", error: "Agent not found" }).eq("id", task.id).eq("organization_id", task.organization_id).eq("status", "pending");
       return NextResponse.json({ error: "Agent not found" }, { status: 409 });
@@ -53,6 +53,7 @@ export async function PATCH(request: Request) {
       model: dbAgent.model,
       tools: dbAgent.tools ?? [],
       permissions: dbAgent.permissions ?? [],
+      scopes: dbAgent.scopes ?? [],
       budgetCents: dbAgent.budget_cents,
       status: dbAgent.status,
     };
