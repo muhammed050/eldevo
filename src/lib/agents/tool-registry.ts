@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-import { RuntimeError } from "./errors";
-import { getTool, type ToolRisk } from "./tools";
+import { classifyRuntimeError, RuntimeError } from "./errors";
+import { getTool, type ToolContext, type ToolRisk } from "./tools";
 
 const ToolSchema = z.object({
   id: z.string().uuid(),
@@ -67,6 +67,73 @@ export async function loadToolRegistry(
   return [...byName.values()];
 }
 
+async function executeWithAuditLog<I, O>(
+  definition: RegisteredToolDefinition,
+  execute: (input: I, context: ToolContext) => Promise<O>,
+  input: I,
+  context: ToolContext,
+  serviceRole: boolean,
+): Promise<O> {
+  const supabase = serviceRole
+    ? createSupabaseServiceClient()
+    : await createSupabaseServerClient();
+  const startedAt = Date.now();
+
+  const { data: logId, error: startError } = await supabase.rpc("start_tool_execution_log", {
+    p_organization_id: context.organizationId,
+    p_task_id: context.taskId,
+    p_agent_id: context.agentId,
+    p_tool_id: definition.id,
+    p_tool_name: definition.name,
+    p_tool_version: definition.version,
+  });
+
+  if (startError || !logId) {
+    throw new RuntimeError(
+      "STEP_PERSISTENCE_FAILED",
+      `Could not start tool execution log: ${startError?.message ?? "missing log id"}`,
+      { retryable: true, cause: startError },
+    );
+  }
+
+  try {
+    const result = await execute(input, context);
+    const { error: finishError } = await supabase.rpc("finish_tool_execution_log", {
+      p_log_id: logId,
+      p_organization_id: context.organizationId,
+      p_status: "completed",
+      p_duration_ms: Date.now() - startedAt,
+      p_error_code: null,
+      p_error_message: null,
+    });
+    if (finishError) {
+      throw new RuntimeError(
+        "STEP_PERSISTENCE_FAILED",
+        `Could not finish tool execution log: ${finishError.message}`,
+        { retryable: true, cause: finishError },
+      );
+    }
+    return result;
+  } catch (error) {
+    const runtimeError = error instanceof RuntimeError ? error : classifyRuntimeError(error);
+    const { error: finishError } = await supabase.rpc("finish_tool_execution_log", {
+      p_log_id: logId,
+      p_organization_id: context.organizationId,
+      p_status: "failed",
+      p_duration_ms: Date.now() - startedAt,
+      p_error_code: runtimeError.code,
+      p_error_message: runtimeError.message,
+    });
+
+    // Preserve the execution error as the primary failure. A failed terminal-log update
+    // leaves the row in `running`, which is intentionally detectable by health/ops jobs.
+    if (finishError && runtimeError.code === "STEP_PERSISTENCE_FAILED") {
+      throw runtimeError;
+    }
+    throw runtimeError;
+  }
+}
+
 export async function resolveRegisteredTool(
   organizationId: string,
   name: string,
@@ -97,6 +164,14 @@ export async function resolveRegisteredTool(
       risk: definition.risk_level as ToolRisk,
       permissions: definition.permissions.length ? definition.permissions : implementation.permissions,
       scopes: definition.scopes,
+      execute: (input: unknown, context: ToolContext) =>
+        executeWithAuditLog(
+          definition,
+          implementation.execute as (input: unknown, context: ToolContext) => Promise<unknown>,
+          input,
+          context,
+          options?.serviceRole === true,
+        ),
     },
   };
 }
