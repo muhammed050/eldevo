@@ -40,7 +40,9 @@ export async function checkRegisteredToolHealth(organizationId: string, name: st
   const executorName = definition.executor_key?.startsWith("builtin:") ? definition.executor_key.slice(8) : definition.name;
   const implementation = getTool(executorName);
   const status = implementation ? "healthy" : "unhealthy";
-  const supabase = options?.serviceRole ? createSupabaseServiceClient() : await createSupabaseServerClient();
+  // Health state is authoritative telemetry; registry reads remain tenant-scoped above,
+  // while the resulting write is performed only by trusted server runtime code.
+  const supabase = createSupabaseServiceClient();
   const { error } = await supabase.rpc("record_tool_health_check", {
     p_tool_id: definition.id, p_organization_id: definition.organization_id, p_status: status,
     p_latency_ms: Date.now() - startedAt, p_error_code: implementation ? null : "TOOL_NOT_FOUND",
