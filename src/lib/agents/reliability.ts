@@ -1,4 +1,10 @@
-export type RetryOptions = { maxAttempts?: number; baseDelayMs?: number; maxDelayMs?: number; signal?: AbortSignal };
+export type RetryOptions = {
+  maxAttempts?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  signal?: AbortSignal;
+  shouldRetry?: (error: unknown, attempt: number) => boolean;
+};
 
 export function sleep(ms: number, signal?: AbortSignal) {
   if (signal?.aborted) return Promise.reject(new Error("Operation cancelled"));
@@ -26,7 +32,8 @@ export async function withRetry<T>(operation: (attempt: number, signal: AbortSig
       try { return await operation(attempt, controller.signal); }
       catch (error) {
         lastError = error;
-        if (controller.signal.aborted || attempt === maxAttempts) break;
+        const retryable = options.shouldRetry?.(error, attempt) ?? true;
+        if (controller.signal.aborted || attempt === maxAttempts || !retryable) break;
         await sleep(Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1)), controller.signal);
       }
     }
