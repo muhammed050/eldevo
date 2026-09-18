@@ -71,10 +71,16 @@ async function executeWithAuditLog<I, O>(definition: RegisteredToolDefinition, e
 
 async function executeWithToolReliability<I, O>(definition: RegisteredToolDefinition, execute: (input: I, context: ToolContext) => Promise<O>, input: I, context: ToolContext): Promise<O> {
   return withRetry(
-    async (attempt, retrySignal) => withTimeout(
-      async (attemptSignal) => executeWithAuditLog(definition, execute, input, { ...context, signal: attemptSignal }, attempt),
-      definition.timeout_ms,
-      retrySignal,
+    async (attempt, retrySignal) => executeWithAuditLog(
+      definition,
+      (_input, auditContext) => withTimeout(
+        (attemptSignal) => execute(input, { ...auditContext, signal: attemptSignal }),
+        definition.timeout_ms,
+        retrySignal,
+      ),
+      input,
+      context,
+      attempt,
     ),
     {
       maxAttempts: definition.max_attempts,
