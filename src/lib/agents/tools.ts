@@ -4,6 +4,8 @@ export interface ToolContext {
   organizationId: string;
   agentId: string;
   taskId: string;
+  /** Optional runtime cancellation signal propagated to tool executors. */
+  signal?: AbortSignal;
 }
 
 export interface ToolDefinition<I = unknown, O = unknown> {
