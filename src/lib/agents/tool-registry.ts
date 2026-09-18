@@ -50,8 +50,12 @@ export async function checkRegisteredToolHealth(organizationId: string, name: st
   return { toolId: definition.id, name: definition.name, version: definition.version, status, latencyMs: Date.now() - startedAt } as const;
 }
 
-async function executeWithAuditLog<I, O>(definition: RegisteredToolDefinition, execute: (input: I, context: ToolContext) => Promise<O>, input: I, context: ToolContext, serviceRole: boolean): Promise<O> {
-  const supabase = serviceRole ? createSupabaseServiceClient() : await createSupabaseServerClient(); const startedAt = Date.now();
+async function executeWithAuditLog<I, O>(definition: RegisteredToolDefinition, execute: (input: I, context: ToolContext) => Promise<O>, input: I, context: ToolContext): Promise<O> {
+  // Execution telemetry is authoritative operational data. Always write it with the
+  // server-only service client so browser-facing authenticated roles never need RPC
+  // permission to forge lifecycle records.
+  const supabase = createSupabaseServiceClient();
+  const startedAt = Date.now();
   const { data: logId, error: startError } = await supabase.rpc("start_tool_execution_log", { p_organization_id: context.organizationId, p_task_id: context.taskId, p_agent_id: context.agentId, p_tool_id: definition.id, p_tool_name: definition.name, p_tool_version: definition.version });
   if (startError || !logId) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not start tool execution log: ${startError?.message ?? "missing log id"}`, { retryable: true, cause: startError });
   try {
@@ -73,5 +77,5 @@ export async function resolveRegisteredTool(organizationId: string, name: string
   const executorName = definition.executor_key?.startsWith("builtin:") ? definition.executor_key.slice("builtin:".length) : definition.name;
   const implementation = getTool(executorName);
   if (!implementation) throw new RuntimeError("TOOL_NOT_FOUND", `Tool '${name}' has no runtime implementation`);
-  return { definition, implementation: { ...implementation, name: definition.name, description: definition.description, risk: definition.risk_level as ToolRisk, permissions: definition.permissions.length ? definition.permissions : implementation.permissions, scopes: definition.scopes, execute: (input: unknown, context: ToolContext) => executeWithAuditLog(definition, implementation.execute as (input: unknown, context: ToolContext) => Promise<unknown>, input, context, options?.serviceRole === true) } };
+  return { definition, implementation: { ...implementation, name: definition.name, description: definition.description, risk: definition.risk_level as ToolRisk, permissions: definition.permissions.length ? definition.permissions : implementation.permissions, scopes: definition.scopes, execute: (input: unknown, context: ToolContext) => executeWithAuditLog(definition, implementation.execute as (input: unknown, context: ToolContext) => Promise<unknown>, input, context) } };
 }
