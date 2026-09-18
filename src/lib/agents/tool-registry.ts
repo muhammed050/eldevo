@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { classifyRuntimeError, RuntimeError } from "./errors";
+import { withRetry, withTimeout } from "./reliability";
 import { getTool, type ToolContext, type ToolRisk } from "./tools";
 
 const ToolSchema = z.object({
@@ -40,8 +41,6 @@ export async function checkRegisteredToolHealth(organizationId: string, name: st
   const executorName = definition.executor_key?.startsWith("builtin:") ? definition.executor_key.slice(8) : definition.name;
   const implementation = getTool(executorName);
   const status = implementation ? "healthy" : "unhealthy";
-  // Health state is authoritative telemetry; registry reads remain tenant-scoped above,
-  // while the resulting write is performed only by trusted server runtime code.
   const supabase = createSupabaseServiceClient();
   const { error } = await supabase.rpc("record_tool_health_check", {
     p_tool_id: definition.id, p_organization_id: definition.organization_id, p_status: status,
@@ -52,13 +51,10 @@ export async function checkRegisteredToolHealth(organizationId: string, name: st
   return { toolId: definition.id, name: definition.name, version: definition.version, status, latencyMs: Date.now() - startedAt } as const;
 }
 
-async function executeWithAuditLog<I, O>(definition: RegisteredToolDefinition, execute: (input: I, context: ToolContext) => Promise<O>, input: I, context: ToolContext): Promise<O> {
-  // Execution telemetry is authoritative operational data. Always write it with the
-  // server-only service client so browser-facing authenticated roles never need RPC
-  // permission to forge lifecycle records.
+async function executeWithAuditLog<I, O>(definition: RegisteredToolDefinition, execute: (input: I, context: ToolContext) => Promise<O>, input: I, context: ToolContext, attempt: number): Promise<O> {
   const supabase = createSupabaseServiceClient();
   const startedAt = Date.now();
-  const { data: logId, error: startError } = await supabase.rpc("start_tool_execution_log", { p_organization_id: context.organizationId, p_task_id: context.taskId, p_agent_id: context.agentId, p_tool_id: definition.id, p_tool_name: definition.name, p_tool_version: definition.version });
+  const { data: logId, error: startError } = await supabase.rpc("start_tool_execution_log", { p_organization_id: context.organizationId, p_task_id: context.taskId, p_agent_id: context.agentId, p_tool_id: definition.id, p_tool_name: definition.name, p_tool_version: definition.version, p_attempt: attempt });
   if (startError || !logId) throw new RuntimeError("STEP_PERSISTENCE_FAILED", `Could not start tool execution log: ${startError?.message ?? "missing log id"}`, { retryable: true, cause: startError });
   try {
     const result = await execute(input, context);
@@ -73,11 +69,26 @@ async function executeWithAuditLog<I, O>(definition: RegisteredToolDefinition, e
   }
 }
 
+async function executeWithToolReliability<I, O>(definition: RegisteredToolDefinition, execute: (input: I, context: ToolContext) => Promise<O>, input: I, context: ToolContext): Promise<O> {
+  return withRetry(
+    async (attempt, retrySignal) => withTimeout(
+      async (attemptSignal) => executeWithAuditLog(definition, execute, input, { ...context, signal: attemptSignal }, attempt),
+      definition.timeout_ms,
+      retrySignal,
+    ),
+    {
+      maxAttempts: definition.max_attempts,
+      signal: context.signal,
+      shouldRetry: (error) => classifyRuntimeError(error).retryable,
+    },
+  );
+}
+
 export async function resolveRegisteredTool(organizationId: string, name: string, options?: RegistryOptions) {
   const tools = await loadToolRegistry(organizationId, [name], options); const definition = tools.find((tool) => tool.name === name);
   if (!definition) throw new RuntimeError("TOOL_NOT_FOUND", `Tool '${name}' is not registered or enabled`);
   const executorName = definition.executor_key?.startsWith("builtin:") ? definition.executor_key.slice("builtin:".length) : definition.name;
   const implementation = getTool(executorName);
   if (!implementation) throw new RuntimeError("TOOL_NOT_FOUND", `Tool '${name}' has no runtime implementation`);
-  return { definition, implementation: { ...implementation, name: definition.name, description: definition.description, risk: definition.risk_level as ToolRisk, permissions: definition.permissions.length ? definition.permissions : implementation.permissions, scopes: definition.scopes, execute: (input: unknown, context: ToolContext) => executeWithAuditLog(definition, implementation.execute as (input: unknown, context: ToolContext) => Promise<unknown>, input, context) } };
+  return { definition, implementation: { ...implementation, name: definition.name, description: definition.description, risk: definition.risk_level as ToolRisk, permissions: definition.permissions.length ? definition.permissions : implementation.permissions, scopes: definition.scopes, execute: (input: unknown, context: ToolContext) => executeWithToolReliability(definition, implementation.execute as (input: unknown, context: ToolContext) => Promise<unknown>, input, context) } };
 }
