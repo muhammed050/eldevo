@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { classifyRuntimeError, RuntimeError } from "./errors";
 import { withRetry, withTimeout } from "./reliability";
+import { executeInToolDataSandbox } from "./tool-sandbox";
 import { getTool, type ToolContext, type ToolRisk } from "./tools";
 
 const ToolSchema = z.object({
@@ -74,7 +75,10 @@ async function executeWithToolReliability<I, O>(definition: RegisteredToolDefini
     async (attempt, retrySignal) => executeWithAuditLog(
       definition,
       (_input, auditContext) => withTimeout(
-        (attemptSignal) => execute(input, { ...auditContext, signal: attemptSignal }),
+        (attemptSignal) => executeInToolDataSandbox(
+          (isolatedInput) => execute(isolatedInput, { ...auditContext, signal: attemptSignal }),
+          input,
+        ),
         definition.timeout_ms,
         retrySignal,
       ),
