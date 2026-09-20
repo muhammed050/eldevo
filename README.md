@@ -9,7 +9,6 @@ Eldevo is an AI workforce platform for deploying autonomous AI employees and tea
 Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ### Phase 0 — Product Foundation
-
 - [x] Define Eldevo product vision and positioning.
 - [x] Define Eldevo as an AI Workforce / Agent Operating System.
 - [x] Define multi-tenant Organization architecture.
@@ -18,7 +17,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Choose Supabase/PostgreSQL for persistence and Auth.
 
 ### Phase 1 — Database Foundation
-
 - [x] Organizations foundation.
 - [x] Organization memberships and roles.
 - [x] Agent persistence.
@@ -31,7 +29,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Organization isolation for Agent/Task/Approval/Audit data.
 
 ### Phase 2 — Runtime Foundation
-
 - [x] Agent definitions and lifecycle states.
 - [x] Task lifecycle states.
 - [x] Planner foundation.
@@ -51,7 +48,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Runtime audit event foundation.
 
 ### Phase 3 — Production Execution Engine
-
 - [x] Persist task before execution.
 - [x] Persist planned task steps.
 - [x] Persist step state transitions.
@@ -73,7 +69,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Production-grade usage/cost accounting.
 
 ### Phase 4 — Tool Registry
-
 - [x] Database-backed tool registry.
 - [x] Tool versions.
 - [x] Tool schemas using Zod/JSON Schema.
@@ -86,10 +81,9 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Tool health checks.
 - [x] Tool timeouts and retries.
 - [x] Tool sandboxing.
-- [ ] Tool marketplace publishing.
+- [x] Tool marketplace publishing.
 
 ### Phase 5 — Eldevo Memory / Brain
-
 - [ ] Working memory for the current task.
 - [ ] Conversation/task history.
 - [ ] Episodic memory.
@@ -106,7 +100,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Source citations/provenance.
 
 ### Phase 6 — Model Router
-
 - [ ] Unified model interface.
 - [ ] OpenAI models.
 - [ ] Anthropic models.
@@ -122,7 +115,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Model usage analytics.
 
 ### Phase 7 — Agent Runtime Intelligence
-
 - [ ] LLM-powered planner.
 - [ ] Structured plans.
 - [ ] Dynamic replanning.
@@ -137,7 +129,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Agent state machine.
 
 ### Phase 8 — Multi-Agent Teams
-
 - [ ] Team entity.
 - [ ] Team manager / orchestrator.
 - [ ] Specialist agents.
@@ -151,7 +142,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Team templates.
 
 ### Phase 9 — Eldevo Sales Team
-
 - [ ] Sales workspace.
 - [ ] Prospect research.
 - [ ] Company enrichment.
@@ -166,7 +156,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Outcome-based pricing experiments.
 
 ### Phase 10 — Integrations
-
 - [ ] Gmail.
 - [ ] Calendar.
 - [ ] Slack.
@@ -180,7 +169,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] OAuth connection management.
 
 ### Phase 11 — Security & Governance
-
 - [ ] RBAC.
 - [ ] Fine-grained permissions.
 - [ ] Agent capability policies.
@@ -198,7 +186,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Enterprise security controls.
 
 ### Phase 12 — Developer Platform & API
-
 - [ ] API keys.
 - [x] API authentication.
 - [x] Task API.
@@ -214,7 +201,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] API documentation.
 
 ### Phase 13 — Agent Marketplace
-
 - [ ] Agent publishing.
 - [ ] Agent profiles.
 - [ ] Versioning.
@@ -228,7 +214,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Enterprise/private agents.
 
 ### Phase 14 — Enterprise
-
 - [ ] Enterprise organizations.
 - [ ] SSO/SAML.
 - [ ] SCIM.
@@ -243,7 +228,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Enterprise billing.
 
 ### Phase 15 — Billing & Economics
-
 - [ ] Subscription plans.
 - [ ] Usage billing.
 - [ ] Agent billing.
@@ -258,7 +242,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Enterprise contracts.
 
 ### Phase 16 — Observability & Reliability
-
 - [ ] Runtime dashboard.
 - [ ] Agent health.
 - [x] Task tracing.
@@ -273,7 +256,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] SLOs/SLIs.
 
 ### Phase 17 — Scale
-
 - [x] Background workers.
 - [x] Queue architecture.
 - [ ] Horizontal scaling.
@@ -287,7 +269,6 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [ ] Backups and restore tests.
 
 ### Phase 18 — Growth / SEO / Acquisition
-
 - [ ] Marketing website.
 - [ ] Agent landing pages.
 - [ ] Tool landing pages.
@@ -303,7 +284,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, bounded opt-in concurrent execution for explicitly independent steps, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Parallel execution is restricted to steps explicitly marked `parallelSafe` in the persisted plan and sharing a `parallelGroup`; tool execution, approval-gated work, and validation remain sequential by default. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, capture uncached input, cache-read, cache-write and output token classes, use dated model-pricing snapshots, apply GPT-5.6 long-context pricing modifiers, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views.
 
-The Tool Registry now has database-backed tenant/global definitions with versions, input/output schemas, risk classification, configuration, secret references, executor bindings and deterministic organization-over-global resolution. Runtime tool execution resolves through that registry before policy checks, so organization-specific permissions/risk metadata are enforced while executable adapters remain server-side and database metadata cannot inject arbitrary executable code. Every registered tool invocation writes a tenant-scoped durable execution lifecycle record with task, agent, tool/version, status, duration, attempt number and bounded error metadata; RPC validation prevents callers from forging cross-tenant execution context, and tool input/output payloads are deliberately excluded from the operational log to reduce secret and sensitive-data exposure. Tool definitions also have durable health state with bounded operational errors, latency and consecutive-failure counters. Each registered tool now enforces its own bounded `timeout_ms` and `max_attempts`; only errors classified as retryable are retried with exponential backoff, timeout/cancellation signals propagate to cooperative executors, and every retry attempt receives its own durable execution log. Trusted server-side tool adapters now execute behind a strict JSON data sandbox that copies inputs/outputs, rejects prototype-pollution and accessor fields, non-plain/non-JSON values, excessive nesting/field counts, and bounded payload sizes. This is a data boundary for trusted adapters, not OS/process isolation for untrusted executable code.
+The Tool Registry has database-backed tenant/global definitions with versions, schemas, permissions/scopes, risk classification, configuration, secret references, health state, executor bindings, execution logs, per-tool retries/timeouts, and a strict JSON data sandbox for trusted server-side adapters. Organization owners/admins can now publish enabled executable tools into a safe authenticated marketplace catalog with validated slug/summary/category/tags and unpublish them later. Publishing is authorization-checked in PostgreSQL; the catalog deliberately excludes executor bindings, configuration and secret references. This publishing layer is distinct from the later Phase 13 commercial marketplace/install/review/billing work.
 
 ## Development Rule
 
