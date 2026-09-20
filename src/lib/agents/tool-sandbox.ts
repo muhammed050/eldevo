@@ -34,19 +34,32 @@ function copyJsonValue(value: unknown, limits: ToolSandboxLimits, depth = 0, key
   if (Array.isArray(value)) return value.map((item) => copyJsonValue(item, limits, depth + 1, keyCount));
   if (typeof value !== "object") throw new RuntimeError("TOOL_DENIED", "Tool payload contains a non-JSON value");
 
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new RuntimeError("TOOL_DENIED", "Tool payload contains a non-plain object");
+  }
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new RuntimeError("TOOL_DENIED", "Tool payload contains symbol fields");
+  }
+
   const result: Record<string, unknown> = Object.create(null);
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const [key, descriptor] of Object.entries(descriptors)) {
     keyCount.value += 1;
     if (keyCount.value > limits.maxKeys) throw new RuntimeError("TOOL_DENIED", "Tool payload contains too many fields");
     if (FORBIDDEN_KEYS.has(key)) throw new RuntimeError("TOOL_DENIED", `Tool payload contains forbidden field '${key}'`);
-    result[key] = copyJsonValue(child, limits, depth + 1, keyCount);
+    if (!("value" in descriptor)) throw new RuntimeError("TOOL_DENIED", `Tool payload contains accessor field '${key}'`);
+    result[key] = copyJsonValue(descriptor.value, limits, depth + 1, keyCount);
   }
   return result;
 }
 
 function isolatePayload(value: unknown, maxBytes: number, limits: ToolSandboxLimits): unknown {
-  if (byteLength(value) > maxBytes) throw new RuntimeError("TOOL_DENIED", `Tool payload exceeds ${maxBytes} byte limit`);
-  return copyJsonValue(value, limits);
+  // Copy and validate before serializing so accessors/toJSON hooks on caller-owned objects
+  // cannot execute inside the boundary merely as a side effect of measuring the payload.
+  const isolated = copyJsonValue(value, limits);
+  if (byteLength(isolated) > maxBytes) throw new RuntimeError("TOOL_DENIED", `Tool payload exceeds ${maxBytes} byte limit`);
+  return isolated;
 }
 
 /**
