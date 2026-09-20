@@ -20,6 +20,33 @@ describe("tool data sandbox", () => {
       .rejects.toMatchObject({ code: "TOOL_DENIED" });
   });
 
+  it("rejects accessor properties without invoking them", async () => {
+    let invoked = false;
+    const input = Object.defineProperty({}, "secret", {
+      enumerable: true,
+      get() {
+        invoked = true;
+        return "leaked";
+      },
+    });
+
+    await expect(executeInToolDataSandbox(async (value) => value, input, smallLimits))
+      .rejects.toMatchObject({ code: "TOOL_DENIED" });
+    expect(invoked).toBe(false);
+  });
+
+  it("rejects class instances instead of silently coercing them", async () => {
+    class Payload { value = "unsafe"; }
+    await expect(executeInToolDataSandbox(async (value) => value, new Payload(), smallLimits))
+      .rejects.toMatchObject({ code: "TOOL_DENIED" });
+  });
+
+  it("rejects symbol fields instead of silently dropping them", async () => {
+    const input = { value: "ok", [Symbol("hidden")]: "secret" };
+    await expect(executeInToolDataSandbox(async (value) => value, input, smallLimits))
+      .rejects.toMatchObject({ code: "TOOL_DENIED" });
+  });
+
   it("rejects excessive nesting", async () => {
     await expect(executeInToolDataSandbox(async (input) => input, { a: { b: { c: { d: { e: 1 } } } } }, smallLimits))
       .rejects.toMatchObject({ code: "TOOL_DENIED" });
