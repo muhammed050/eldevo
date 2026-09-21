@@ -6,8 +6,6 @@ Eldevo is an AI workforce platform for deploying autonomous AI employees and tea
 
 ## Project Status & Roadmap
 
-Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
-
 ### Phase 0 — Product Foundation
 - [x] Define Eldevo product vision and positioning.
 - [x] Define Eldevo as an AI Workforce / Agent Operating System.
@@ -84,7 +82,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 - [x] Tool marketplace publishing.
 
 ### Phase 5 — Eldevo Memory / Brain
-- [ ] Working memory for the current task.
+- [x] Working memory for the current task.
 - [ ] Conversation/task history.
 - [ ] Episodic memory.
 - [ ] Semantic memory.
@@ -282,9 +280,7 @@ Legend: **✅ completed** · **🔄 current/next** · **⬜ planned**
 
 ## Current Runtime Status
 
-The repository contains the initial Agent runtime with planner, policy, runtime, tools, model abstractions, durable queue/worker support, retry backoff, dead-letter handling, approval-driven resumption, timeout/cancellation handling, bounded opt-in concurrent execution for explicitly independent steps, per-step tracing, typed runtime error persistence, and durable usage/cost metering. Parallel execution is restricted to steps explicitly marked `parallelSafe` in the persisted plan and sharing a `parallelGroup`; tool execution, approval-gated work, and validation remain sequential by default. Usage records are immutable and idempotent per task-step attempt, store fractional-cent precision, capture uncached input, cache-read, cache-write and output token classes, use dated model-pricing snapshots, apply GPT-5.6 long-context pricing modifiers, support service workers, roll up authoritatively to tasks on terminal transitions, and expose organization/agent aggregate views.
-
-The Tool Registry has database-backed tenant/global definitions with versions, schemas, permissions/scopes, risk classification, configuration, secret references, health state, executor bindings, execution logs, per-tool retries/timeouts, and a strict JSON data sandbox for trusted server-side adapters. Organization owners/admins can now publish enabled executable tools into a safe authenticated marketplace catalog with validated slug/summary/category/tags and unpublish them later. Publishing is authorization-checked in PostgreSQL; the catalog deliberately excludes executor bindings, configuration and secret references. This publishing layer is distinct from the later Phase 13 commercial marketplace/install/review/billing work.
+The production runtime and Tool Registry are implemented. Phase 5 now includes durable tenant-isolated task working memory. `task_working_memory` tracks the current goal/status/step, accumulated completed-step outputs and an explicit scratchpad. Database triggers synchronize it from persisted task and step transitions, so queued and resumed execution observes durable state rather than process-local memory. Authenticated reads are organization-scoped by RLS; scratchpad writes go through a tenant-validating RPC and direct client writes are revoked.
 
 ## Development Rule
 
