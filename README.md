@@ -84,7 +84,7 @@ Eldevo is an AI workforce platform for deploying autonomous AI employees and tea
 ### Phase 5 — Eldevo Memory / Brain
 - [x] Working memory for the current task.
 - [x] Conversation/task history.
-- [ ] Episodic memory.
+- [x] Episodic memory.
 - [ ] Semantic memory.
 - [ ] Organization knowledge base.
 - [ ] Document ingestion.
@@ -280,7 +280,7 @@ Eldevo is an AI workforce platform for deploying autonomous AI employees and tea
 
 ## Current Runtime Status
 
-The production runtime and Tool Registry are implemented. Phase 5 now includes durable tenant-isolated task working memory plus persisted conversation/task history. `task_working_memory` tracks the current goal/status/step, accumulated completed-step outputs and an explicit scratchpad. Database triggers synchronize it from persisted task and step transitions, so queued and resumed execution observes durable state rather than process-local memory. Conversation messages are append-only, tenant-scoped, and privileged assistant/system/tool authorship plus task linkage are restricted to service-role runtime execution. Task and step lifecycle transitions are recorded as durable history events. Authenticated reads remain organization-scoped by RLS.
+The production runtime and Tool Registry are implemented. Phase 5 now includes durable tenant-isolated task working memory, persisted conversation/task history, and episodic memory. Conversation messages are append-only and tenant-scoped; task and step lifecycle transitions are recorded as durable history events. Terminal task outcomes are automatically captured idempotently as per-agent episodes with outcome, result/error, importance, cost metadata, and occurrence time for later recall. Authenticated reads remain organization-scoped by RLS while memory/history writes are server-controlled or tenant-validating RPCs.
 
 ## Development Rule
 
