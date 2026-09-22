@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync("supabase/migrations/0025_conversation_task_history.sql", "utf8");
-const hardeningSql = readFileSync("supabase/migrations/0026_harden_conversation_message_writes.sql", "utf8");
+const hardeningSql = readFileSync("supabase/migrations/0027_harden_conversation_message_writes.sql", "utf8");
 
 describe("conversation and task history migration", () => {
   it("enables RLS on all history tables", () => {
