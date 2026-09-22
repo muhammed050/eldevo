@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync("supabase/migrations/0025_conversation_task_history.sql", "utf8");
+const hardeningSql = readFileSync("supabase/migrations/0026_harden_conversation_message_writes.sql", "utf8");
 
 describe("conversation and task history migration", () => {
   it("enables RLS on all history tables", () => {
@@ -23,5 +24,18 @@ describe("conversation and task history migration", () => {
     expect(sql).toContain("task_steps_record_history");
     expect(sql).toContain("task.status_changed");
     expect(sql).toContain("step.status_changed");
+  });
+
+  it("prevents authenticated clients from forging privileged conversation authorship", () => {
+    expect(hardeningSql).toContain("if p_role <> 'user'");
+    expect(hardeningSql).toContain("privileged conversation role requires service role");
+    expect(hardeningSql).toContain("if p_task_id is not null");
+    expect(hardeningSql).toContain("task-linked messages require service role");
+    expect(hardeningSql).toContain("v_role not in ('authenticated', 'service_role')");
+  });
+
+  it("keeps the RPC unavailable to public and anon while allowing authenticated user messages", () => {
+    expect(hardeningSql).toContain("revoke all on function public.append_conversation_message(uuid, uuid, text, jsonb, uuid) from public, anon");
+    expect(hardeningSql).toContain("grant execute on function public.append_conversation_message(uuid, uuid, text, jsonb, uuid) to authenticated, service_role");
   });
 });
