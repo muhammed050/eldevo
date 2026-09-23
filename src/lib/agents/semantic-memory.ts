@@ -18,8 +18,10 @@ export async function rememberSemanticMemory(input: {
   organizationId: string; agentId: string; memoryKey: string; content: string;
   category?: SemanticMemoryCategory; confidence?: number; importance?: number;
   sourceTaskId?: string | null; metadata?: Record<string, unknown>;
-}, options: Options = {}): Promise<string> {
-  const client = await db(options);
+}): Promise<string> {
+  // Semantic memory is derived runtime state, not user-authored content. Always
+  // use the server-only service client so browser sessions cannot poison it.
+  const client = createSupabaseServiceClient();
   const { data, error } = await client.rpc("upsert_agent_semantic_memory", {
     p_organization_id: input.organizationId,
     p_agent_id: input.agentId,
