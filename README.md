@@ -85,7 +85,7 @@ Eldevo is an AI workforce platform for deploying autonomous AI employees and tea
 - [x] Working memory for the current task.
 - [x] Conversation/task history.
 - [x] Episodic memory.
-- [ ] Semantic memory.
+- [x] Semantic memory.
 - [ ] Organization knowledge base.
 - [ ] Document ingestion.
 - [ ] Chunking and metadata.
@@ -280,7 +280,7 @@ Eldevo is an AI workforce platform for deploying autonomous AI employees and tea
 
 ## Current Runtime Status
 
-The production runtime and Tool Registry are implemented. Phase 5 now includes durable tenant-isolated task working memory, persisted conversation/task history, and episodic memory. Conversation messages are append-only and tenant-scoped; task and step lifecycle transitions are recorded as durable history events. Terminal task outcomes are automatically captured idempotently as per-agent episodes with outcome, result/error, importance, cost metadata, and occurrence time for later recall. Authenticated reads remain organization-scoped by RLS while memory/history writes are server-controlled or tenant-validating RPCs.
+The production runtime and Tool Registry are implemented. Phase 5 now includes durable tenant-isolated task working memory, persisted conversation/task history, episodic memory, and durable semantic memory for agent facts, preferences, procedures, and concepts. Semantic memories use tenant-and-agent scoped idempotent keys, confidence/importance metadata, optional task provenance, RLS-protected reads, and validated server-controlled writes. Conversation messages are append-only and tenant-scoped; task and step lifecycle transitions are recorded as durable history events. Terminal task outcomes are automatically captured idempotently as per-agent episodes with outcome, result/error, importance, cost metadata, and occurrence time for later recall.
 
 ## Development Rule
 
